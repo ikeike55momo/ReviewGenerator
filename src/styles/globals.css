@@ -1,0 +1,74 @@
+/**
+ * グローバルCSS - Tailwind CSS + カスタムスタイル
+ * CSV駆動型レビュー生成エージェント用
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* カスタムスタイル */
+@layer base {
+  html {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  }
+}
+
+@layer components {
+  /* CSVアップロードエリアのカスタムスタイル */
+  .csv-upload-area {
+    @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center transition-colors hover:border-blue-400;
+  }
+
+  .csv-upload-area.success {
+    @apply border-green-300 bg-green-50;
+  }
+
+  .csv-upload-area.error {
+    @apply border-red-300 bg-red-50;
+  }
+
+  /* レビューカードのカスタムスタイル */
+  .review-card {
+    @apply border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow;
+  }
+
+  /* 品質スコアバッジ */
+  .score-badge-high {
+    @apply px-2 py-1 rounded text-xs font-medium text-green-600 bg-green-100;
+  }
+
+  .score-badge-medium {
+    @apply px-2 py-1 rounded text-xs font-medium text-yellow-600 bg-yellow-100;
+  }
+
+  .score-badge-low {
+    @apply px-2 py-1 rounded text-xs font-medium text-red-600 bg-red-100;
+  }
+}
+
+@layer utilities {
+  /* 日本語フォント最適化 */
+  .font-japanese {
+    font-family: 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+  }
+
+  /* スクロールバーのカスタマイズ */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e0 #f7fafc;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #f7fafc;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #cbd5e0;
+    border-radius: 3px;
+  }
+} 
