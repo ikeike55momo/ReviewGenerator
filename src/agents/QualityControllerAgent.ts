@@ -1,11 +1,20 @@
 /**
  * @file QualityControllerAgent
- * @description レビュー品質管理エージェント。Netlify互換の独立クラス実装。
+ * @description レビュー品質管理エージェント。Mastraエージェントフレームワーク実装。
  */
+import { Agent } from '@mastra/core';
+import { anthropic } from '@ai-sdk/anthropic';
 import { CSVConfig } from '../types/csv';
 import { GeneratedReview } from '../types/review';
 
-export class QualityControllerAgent {
+export class QualityControllerAgent extends Agent {
+  constructor() {
+    super({
+      name: 'Quality Controller Agent',
+      instructions: '生成されたレビューの品質評価とスコアリングを行うエージェント',
+      model: anthropic('claude-3-haiku-20240307')
+    });
+  }
   checkQuality(review: GeneratedReview, config: CSVConfig): GeneratedReview {
     let score = 10.0;
     const { basicRules, qaKnowledge } = config;

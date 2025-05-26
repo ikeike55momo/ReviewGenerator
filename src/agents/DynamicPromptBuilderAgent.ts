@@ -1,12 +1,21 @@
+import { Agent } from '@mastra/core';
+import { anthropic } from '@ai-sdk/anthropic';
 import { CSVConfig } from '../types/csv';
 import { ReviewRequest } from '../types/review';
 
 /**
  * @file DynamicPromptBuilderAgent
- * @description プロンプト生成エージェント。Netlify互換の独立クラス実装。ReviewRequestからpersonalityType, ageGroup, genderを取得し、型安全にhumanPatternsを検索する。
+ * @description プロンプト生成エージェント。Mastraエージェントフレームワーク実装。ReviewRequestからpersonalityType, ageGroup, genderを取得し、型安全にhumanPatternsを検索する。
  */
 
-export class DynamicPromptBuilderAgent {
+export class DynamicPromptBuilderAgent extends Agent {
+  constructor() {
+    super({
+      name: 'Dynamic Prompt Builder Agent',
+      instructions: 'CSVデータに基づいて動的にプロンプトを構築するエージェント',
+      model: anthropic('claude-3-haiku-20240307')
+    });
+  }
 
   buildPrompt(config: CSVConfig, request: ReviewRequest): string {
     const { basicRules, humanPatterns, qaKnowledge } = config;
