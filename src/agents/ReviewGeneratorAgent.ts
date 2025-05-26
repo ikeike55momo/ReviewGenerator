@@ -1,15 +1,22 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { ReviewRequest, GeneratedReview } from '../types/review';
+import { Agent } from '@mastra/core';
+import { anthropic } from '@ai-sdk/anthropic';
 
 /**
  * @file ReviewGeneratorAgent
- * @description レビュー生成エージェント。Anthropic Claude APIの呼び出しとエラーハンドリングを含む。
+ * @description レビュー生成エージェント。Mastraエージェントフレームワーク使用。Anthropic Claude APIの呼び出しとエラーハンドリングを含む。
  */
 
-export class ReviewGeneratorAgent {
+export class ReviewGeneratorAgent extends Agent {
   private claude: Anthropic;
 
   constructor(apiKey: string) {
+    super({
+      name: 'Review Generator Agent',
+      instructions: 'レビュー生成エージェント。Anthropic Claude APIを使用してレビューを生成します。',
+      model: anthropic('claude-3-haiku-20240307'),
+    });
     this.claude = new Anthropic({ apiKey });
   }
 
