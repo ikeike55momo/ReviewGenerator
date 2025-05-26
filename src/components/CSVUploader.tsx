@@ -28,7 +28,7 @@ const CSV_TYPES = {
   humanPatterns: {
     label: 'Human Patterns CSV',
     description: '年齢層、性格タイプ、性別、語彙パターン',
-    expectedHeaders: ['age_group', 'personality_type', 'gender', 'vocabulary', 'exclamation_marks', 'characteristics', 'example'],
+    expectedHeaders: ['personality_type', 'age_group', 'gender', 'vocabulary', 'exclamation_marks', 'characteristics', 'example'],
   },
   qaKnowledge: {
     label: 'QA Knowledge CSV',
@@ -82,9 +82,24 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   const handleFileUpload = useCallback(async (file: File, csvType: keyof typeof CSV_TYPES) => {
     try {
       const text = await file.text();
+      
+      // デバッグ情報出力
+      const lines = text.split('\n').slice(0, 3); // 最初の3行のみ
+      console.log(`CSVデバッグ情報 - ${file.name}:`, {
+        fileSize: file.size,
+        lineCount: text.split('\n').length,
+        firstThreeLines: lines.map((line, index) => ({
+          lineNumber: index + 1,
+          content: line,
+          columnCount: line.split(',').length
+        }))
+      });
+      
       const data = parse(text, {
         columns: true,
         skip_empty_lines: true,
+        relax_column_count: true, // 列数の不一致を許可
+        trim: true, // 前後の空白を削除
         encoding: 'utf8',
       });
 
@@ -115,12 +130,20 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
       }
     } catch (error) {
       console.error(`CSVUploader: ${csvType}のパースエラー`, error);
+      
+      // より詳細なエラーメッセージを作成
+      let detailedMessage = `CSVパースエラー: ${error instanceof Error ? error.message : '不明なエラー'}`;
+      
+      if (error instanceof Error && error.message.includes('Invalid Record Length')) {
+        detailedMessage += '\n\n解決方法:\n1. CSVファイルの列数を確認してください\n2. 余分なカンマや改行がないか確認してください\n3. 文字エンコーディングがUTF-8であることを確認してください';
+      }
+      
       setUploadStates(prev => ({
         ...prev,
         [csvType]: {
           file,
           data: null,
-          error: `CSVパースエラー: ${error instanceof Error ? error.message : '不明なエラー'}`,
+          error: detailedMessage,
           isValid: false,
         },
       }));
