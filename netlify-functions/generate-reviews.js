@@ -4,8 +4,7 @@
  * 純粋JavaScript実装でTypeScript依存関係を回避
  */
 
-// 必要なライブラリをインポート
-const { Anthropic } = require('@anthropic-ai/sdk');
+// デバッグ用：依存関係を最小限に
 
 // Netlify Functions用のエクスポート
 exports.handler = async (event, context) => {
@@ -76,33 +75,16 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Anthropic APIクライアント初期化
-    const anthropic = new Anthropic({
-      apiKey: anthropicApiKey,
-    });
-
-    // レビュー生成
+    // デバッグ用：ダミーレビュー生成
     const generatedReviews = [];
     
-    for (let i = 0; i < reviewCount; i++) {
+    for (let i = 0; i < Math.min(reviewCount, 5); i++) {
       try {
         // ランダムにパターンを選択
         const randomPattern = csvConfig.humanPatterns[Math.floor(Math.random() * csvConfig.humanPatterns.length)];
         
-        // プロンプト生成
-        const prompt = generatePrompt(csvConfig, randomPattern);
-        
-        // Claude APIでレビュー生成
-        const message = await anthropic.messages.create({
-          model: 'claude-3-haiku-20240307',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: prompt
-          }]
-        });
-
-        const reviewText = message.content[0].text;
+        // ダミーレビューテキスト生成
+        const reviewText = generateDummyReview(randomPattern, i + 1);
         
         // 品質スコア計算（簡易版）
         const qualityScore = calculateQualityScore(reviewText, csvConfig);
@@ -113,15 +95,16 @@ exports.handler = async (event, context) => {
           metadata: {
             age_group: randomPattern.age_group,
             personality_type: randomPattern.personality_type,
-            generated_at: new Date().toISOString()
+            generated_at: new Date().toISOString(),
+            debug: true
           }
         });
 
-        console.log(`レビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityScore})`);
+        console.log(`ダミーレビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityScore})`);
       } catch (error) {
         console.error(`レビュー ${i + 1} 生成エラー:`, error);
         
-        // エラー時はダミーレビューを生成
+        // エラー時はエラーレビューを生成
         generatedReviews.push({
           text: `レビュー生成エラーが発生しました: ${error.message}`,
           score: 0,
@@ -161,47 +144,18 @@ exports.handler = async (event, context) => {
 };
 
 /**
- * プロンプト生成関数
+ * ダミーレビュー生成関数（デバッグ用）
  */
-function generatePrompt(csvConfig, pattern) {
-  const { basicRules } = csvConfig;
+function generateDummyReview(pattern, index) {
+  const templates = [
+    `SHOGUN BARに行ってきました！${pattern.age_group}の私にはとても楽しい時間でした。池袋西口からすぐの立地で、アクセスも良好です。店内の雰囲気も素晴らしく、スタッフの方々も親切でした。また利用したいと思います。`,
+    `池袋西口のSHOGUN BARを利用しました。${pattern.personality_type}な性格の私でも楽しめる空間でした。料理も美味しく、ドリンクの種類も豊富で満足できました。友人にもおすすめしたいお店です。`,
+    `SHOGUN BARでの体験は最高でした！${pattern.age_group}世代にはぴったりのエンタメバーだと思います。音楽も良く、料理のクオリティも高いです。池袋西口エリアでは間違いなくおすすめのお店です。`,
+    `池袋西口のSHOGUN BARに初めて行きました。${pattern.personality_type}な私でも居心地よく過ごせました。スタッフの接客も丁寧で、料理も期待以上でした。また訪れたいと思います。`,
+    `SHOGUN BARは素晴らしいエンタメバーです！${pattern.age_group}の私には理想的な空間でした。池袋西口からのアクセスも便利で、料理とドリンクのバランスも良く、大満足の時間を過ごせました。`
+  ];
   
-  // 必須要素を抽出
-  const requiredElements = basicRules
-    .filter(rule => rule.category === 'required_elements')
-    .map(rule => rule.content);
-
-  // 禁止表現を抽出
-  const prohibitedExpressions = basicRules
-    .filter(rule => rule.category === 'prohibited_expressions')
-    .map(rule => rule.content);
-
-  return `🎯 CSV駆動自然口コミ生成システム
-
-以下の条件で、自然な日本語レビューを1つ生成してください：
-
-対象店舗: SHOGUN BAR（池袋西口のエンタメバー）
-年齢層: ${pattern.age_group}
-性格タイプ: ${pattern.personality_type}
-
-必須要素:
-${requiredElements.map(elem => `- ${elem}`).join('\n')}
-
-使用可能な語彙:
-${pattern.vocabulary}
-
-感嘆符使用回数: ${pattern.exclamation_marks}
-
-文体の特徴:
-${pattern.characteristics}
-
-禁止表現:
-${prohibitedExpressions.map(expr => `- ${expr}`).join('\n')}
-
-参考例:
-${pattern.example}
-
-重要：自然で人間らしい文章として、150-400字程度で生成してください。キーワードは自然に配置し、一人称視点で書いてください。`;
+  return templates[index % templates.length];
 }
 
 /**
