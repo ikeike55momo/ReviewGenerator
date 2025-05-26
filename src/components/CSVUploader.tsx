@@ -81,13 +81,26 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
    */
   const handleFileUpload = useCallback(async (file: File, csvType: keyof typeof CSV_TYPES) => {
     try {
-      const text = await file.text();
+      let text = await file.text();
+      
+      // BOM（Byte Order Mark）を除去
+      if (text.charCodeAt(0) === 0xFEFF) {
+        text = text.slice(1);
+        console.log(`BOM除去: ${file.name}`);
+      }
       
       // デバッグ情報出力
       const lines = text.split('\n').slice(0, 3); // 最初の3行のみ
+      const headerLine = lines[0] || '';
+      const headerColumns = headerLine.split(',').map(col => col.trim());
+      
       console.log(`CSVデバッグ情報 - ${file.name}:`, {
         fileSize: file.size,
         lineCount: text.split('\n').length,
+        rawHeaderLine: headerLine,
+        headerColumns: headerColumns,
+        headerColumnsLength: headerColumns.length,
+        expectedHeaders: CSV_TYPES[csvType].expectedHeaders,
         firstThreeLines: lines.map((line, index) => ({
           lineNumber: index + 1,
           content: line,
