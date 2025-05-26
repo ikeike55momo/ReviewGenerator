@@ -1,0 +1,57 @@
+name: 🤖 Claude Code 開発依頼
+description: Claude Code APIを使った自動開発の依頼
+title: "[CLAUDE-DEV] "
+labels: ["claude-dev", "auto-development"]
+body:
+  - type: dropdown
+    id: dev-type
+    attributes:
+      label: 開発タイプ
+      options:
+        - "🏗️ 新機能開発"
+        - "🔧 既存機能改善"
+        - "🐛 バグ修正"
+        - "📝 コード整理・リファクタリング"
+        - "🧪 テスト追加"
+    validations:
+      required: true
+
+  - type: textarea
+    id: claude-prompt
+    attributes:
+      label: Claude Code への指示
+      description: Claude Code APIに送信する詳細な指示
+      placeholder: |
+        あなたは優秀なフルスタック開発者です。
+        以下の要件に基づいて実装してください：
+        
+        【実装要件】
+        - 
+        
+        【技術制約】
+        - 
+        
+        【品質要件】
+        - 
+    validations:
+      required: true
+
+  - type: textarea
+    id: target-files
+    attributes:
+      label: 対象ファイル
+      description: 修正・作成対象のファイル一覧
+      placeholder: |
+        - src/agents/NewAgent.ts (新規作成)
+        - src/components/UploadForm.tsx (修正)
+        - requirements/new-feature.md (更新)
+
+  - type: checkboxes
+    id: execution-options
+    attributes:
+      label: 実行オプション
+      options:
+        - label: 即座実行（手動トリガー）
+        - label: 他のIssueとの連携
+        - label: Pull Request自動作成
+        - label: レビュー後マージ

@@ -1,0 +1,86 @@
+name: 🚀 機能追加・改善要求
+description: 新機能の追加や既存機能の改善を要求
+title: "[FEATURE] "
+labels: ["enhancement", "claude-dev"]
+body:
+  - type: dropdown
+    id: development-phase
+    attributes:
+      label: 開発フェーズ
+      description: どのフェーズでの開発ですか？
+      options:
+        - "Phase 1: プロジェクト基盤"
+        - "Phase 2: Mastraエージェント"
+        - "Phase 3: フロントエンド"
+        - "Phase 4: 統合・テスト"
+        - "Phase 5: 新機能追加"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 優先度
+      options:
+        - "🔥 緊急 (即座対応)"
+        - "⚡ 高 (今週中)"
+        - "📋 中 (今月中)"
+        - "💡 低 (将来対応)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: feature-description
+    attributes:
+      label: 機能の詳細
+      description: 実装したい機能の詳細を記述してください
+      placeholder: |
+        例：
+        - CSVアップロード時のバリデーション強化
+        - 新しい年代層（60代以上）への対応
+        - 品質スコア計算アルゴリズムの改善
+    validations:
+      required: true
+
+  - type: textarea
+    id: requirements
+    attributes:
+      label: 要件・仕様
+      description: Claude Code APIが理解できる形で要件を記述
+      placeholder: |
+        【技術要件】
+        - 使用技術：
+        - 実装場所：
+        - 関連ファイル：
+        
+        【機能要件】
+        - 入力：
+        - 処理：
+        - 出力：
+        
+        【品質要件】
+        - パフォーマンス：
+        - エラーハンドリング：
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample-code
+    attributes:
+      label: サンプルコード・例
+      description: 期待する実装例やサンプルコード
+      render: typescript
+      placeholder: |
+        // 期待する実装例
+        const example = () => {
+          // 実装内容
+        };
+
+  - type: checkboxes
+    id: auto-development
+    attributes:
+      label: 自動開発オプション
+      options:
+        - label: Claude Code APIによる自動実装を希望
+        - label: GitHub Actionsでの自動テストを希望
+        - label: 実装後の自動デプロイを希望

@@ -1,0 +1,54 @@
+name: 🐛 バグ報告
+description: バグや問題の報告
+title: "[BUG] "
+labels: ["bug", "claude-fix"]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 重要度
+      options:
+        - "🚨 致命的 (システム停止)"
+        - "⚠️ 高 (主要機能に影響)"  
+        - "📝 中 (一部機能に影響)"
+        - "💬 低 (軽微な問題)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: bug-description
+    attributes:
+      label: バグの詳細
+      description: 発生している問題の詳細
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1. XXXを実行
+        2. YYYをクリック
+        3. ZZZが発生
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: 期待される動作
+      description: 本来どのように動作すべきか
+
+  - type: textarea
+    id: error-logs
+    attributes:
+      label: エラーログ
+      render: shell
+      description: エラーログやコンソール出力
+
+  - type: checkboxes
+    id: auto-fix
+    attributes:
+      label: 自動修正オプション
+      options:
+        - label: Claude Code APIによる自動修正を希望
+        - label: 修正後の自動テストを希望
