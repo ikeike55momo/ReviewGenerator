@@ -4,7 +4,8 @@
  * 純粋JavaScript実装でTypeScript依存関係を回避
  */
 
-// デバッグ用：依存関係を最小限に
+// 必要なライブラリをインポート
+const { Anthropic } = require('@anthropic-ai/sdk');
 
 // Netlify Functions用のエクスポート
 exports.handler = async (event, context) => {
@@ -75,19 +76,36 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // デバッグ用：ダミーレビュー生成
+    // Anthropic APIクライアント初期化
+    const anthropic = new Anthropic({
+      apiKey: anthropicApiKey,
+    });
+
+    // レビュー生成
     const generatedReviews = [];
     
-    for (let i = 0; i < Math.min(reviewCount, 5); i++) {
+    for (let i = 0; i < reviewCount; i++) {
       try {
         // ランダムにパターンを選択
         const randomPattern = csvConfig.humanPatterns[Math.floor(Math.random() * csvConfig.humanPatterns.length)];
         
-        // ダミーレビューテキスト生成
-        const reviewText = generateDummyReview(randomPattern, i + 1);
+        // プロンプト生成
+        const prompt = generatePrompt(csvConfig, randomPattern);
         
-        // 品質スコア計算（簡易版）
-        const qualityScore = calculateQualityScore(reviewText, csvConfig);
+        // Claude APIでレビュー生成
+        const message = await anthropic.messages.create({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: prompt
+          }]
+        });
+
+        const reviewText = message.content[0].text;
+        
+        // 品質スコア計算
+        const qualityScore = calculateQualityScore(reviewText, csvConfig, randomPattern);
         
         generatedReviews.push({
           text: reviewText,
@@ -95,26 +113,22 @@ exports.handler = async (event, context) => {
           metadata: {
             age_group: randomPattern.age_group,
             personality_type: randomPattern.personality_type,
-            generated_at: new Date().toISOString(),
-            debug: true
+            generated_at: new Date().toISOString()
           }
         });
 
-        console.log(`ダミーレビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityScore})`);
+        console.log(`レビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityScore})`);
       } catch (error) {
         console.error(`レビュー ${i + 1} 生成エラー:`, error);
         
-        // エラー時はエラーレビューを生成
-        generatedReviews.push({
-          text: `レビュー生成エラーが発生しました: ${error.message}`,
-          score: 0,
-          metadata: {
-            age_group: '30代',
-            personality_type: 'default',
-            generated_at: new Date().toISOString(),
-            error: true
-          }
-        });
+        // エラーの詳細をログ出力
+        if (error.status) {
+          console.error(`Claude API Error - Status: ${error.status}, Type: ${error.error?.type}`);
+        }
+        
+        // エラー時はスキップ（品質を保つため）
+        console.log(`レビュー ${i + 1} をスキップしました`);
+        continue;
       }
     }
 
@@ -144,29 +158,75 @@ exports.handler = async (event, context) => {
 };
 
 /**
- * ダミーレビュー生成関数（デバッグ用）
+ * プロンプト生成関数
  */
-function generateDummyReview(pattern, index) {
-  const templates = [
-    `SHOGUN BARに行ってきました！${pattern.age_group}の私にはとても楽しい時間でした。池袋西口からすぐの立地で、アクセスも良好です。店内の雰囲気も素晴らしく、スタッフの方々も親切でした。また利用したいと思います。`,
-    `池袋西口のSHOGUN BARを利用しました。${pattern.personality_type}な性格の私でも楽しめる空間でした。料理も美味しく、ドリンクの種類も豊富で満足できました。友人にもおすすめしたいお店です。`,
-    `SHOGUN BARでの体験は最高でした！${pattern.age_group}世代にはぴったりのエンタメバーだと思います。音楽も良く、料理のクオリティも高いです。池袋西口エリアでは間違いなくおすすめのお店です。`,
-    `池袋西口のSHOGUN BARに初めて行きました。${pattern.personality_type}な私でも居心地よく過ごせました。スタッフの接客も丁寧で、料理も期待以上でした。また訪れたいと思います。`,
-    `SHOGUN BARは素晴らしいエンタメバーです！${pattern.age_group}の私には理想的な空間でした。池袋西口からのアクセスも便利で、料理とドリンクのバランスも良く、大満足の時間を過ごせました。`
-  ];
+function generatePrompt(csvConfig, pattern) {
+  const { basicRules } = csvConfig;
   
-  return templates[index % templates.length];
+  // 必須要素を抽出
+  const requiredElements = basicRules
+    .filter(rule => rule.category === 'required_elements')
+    .map(rule => rule.content);
+
+  // 禁止表現を抽出
+  const prohibitedExpressions = basicRules
+    .filter(rule => rule.category === 'prohibited_expressions')
+    .map(rule => rule.content);
+
+  return `🎯 CSV駆動自然口コミ生成システム
+
+あなたは実際にSHOGUN BAR（池袋西口のエンタメバー）を利用した${pattern.age_group}の${pattern.personality_type}な性格の顧客です。
+実体験に基づいた自然で説得力のあるレビューを1つ生成してください。
+
+## 📋 生成条件
+
+**対象店舗**: SHOGUN BAR（池袋西口のエンタメバー）
+**レビュアー設定**: ${pattern.age_group}・${pattern.personality_type}
+**文字数**: 150-400字
+**視点**: 一人称（実際に利用した体験として）
+
+## ✅ 必須要素（自然に組み込む）
+${requiredElements.map(elem => `• ${elem}`).join('\n')}
+
+## 🎨 文体・語彙設定
+**使用語彙**: ${pattern.vocabulary}
+**感嘆符使用**: ${pattern.exclamation_marks}回程度
+**文体特徴**: ${pattern.characteristics}
+
+## ❌ 禁止表現（絶対に使用しない）
+${prohibitedExpressions.map(expr => `• ${expr}`).join('\n')}
+
+## 📝 参考例
+${pattern.example}
+
+## 🎯 生成指針
+1. **自然性重視**: AIが書いたと分からない、人間らしい表現
+2. **具体性**: 実際の体験を想像させる具体的な描写
+3. **感情表現**: ${pattern.personality_type}らしい感情の込め方
+4. **バランス**: 良い点・改善点を自然に織り交ぜる
+5. **信頼性**: 過度な褒め言葉を避け、リアルな評価
+
+レビューのみを出力してください（説明文は不要）。`;
 }
 
 /**
- * 品質スコア計算関数（簡易版）
+ * 品質スコア計算関数
+ * @param {string} reviewText - 生成されたレビューテキスト
+ * @param {Object} csvConfig - CSV設定データ
+ * @param {Object} pattern - 使用されたヒューマンパターン
+ * @returns {number} 品質スコア（0-10）
  */
-function calculateQualityScore(reviewText, csvConfig) {
+function calculateQualityScore(reviewText, csvConfig, pattern) {
   let score = 10.0;
+  const details = [];
   
-  // 文字数チェック
-  if (reviewText.length < 150 || reviewText.length > 400) {
+  // 文字数チェック（150-400字）
+  if (reviewText.length < 150) {
     score -= 2.0;
+    details.push(`文字数不足: ${reviewText.length}字`);
+  } else if (reviewText.length > 400) {
+    score -= 1.5;
+    details.push(`文字数過多: ${reviewText.length}字`);
   }
   
   // 禁止表現チェック
@@ -177,6 +237,7 @@ function calculateQualityScore(reviewText, csvConfig) {
   for (const expr of prohibitedExpressions) {
     if (reviewText.includes(expr)) {
       score -= 3.0;
+      details.push(`禁止表現検出: ${expr}`);
     }
   }
   
@@ -194,7 +255,40 @@ function calculateQualityScore(reviewText, csvConfig) {
   
   if (requiredCount === 0) {
     score -= 4.0;
+    details.push('必須要素なし');
+  } else if (requiredCount < requiredElements.length / 2) {
+    score -= 2.0;
+    details.push(`必須要素不足: ${requiredCount}/${requiredElements.length}`);
   }
   
-  return Math.max(0, Math.min(10, score));
+  // 感嘆符使用回数チェック
+  const exclamationCount = (reviewText.match(/！/g) || []).length;
+  const expectedExclamations = parseInt(pattern.exclamation_marks) || 0;
+  
+  if (Math.abs(exclamationCount - expectedExclamations) > 2) {
+    score -= 1.0;
+    details.push(`感嘆符数不一致: ${exclamationCount}個（期待: ${expectedExclamations}個）`);
+  }
+  
+  // 自然性チェック（簡易版）
+  if (reviewText.includes('AI') || reviewText.includes('人工知能')) {
+    score -= 5.0;
+    details.push('AI言及検出');
+  }
+  
+  // 重複表現チェック
+  const words = reviewText.split(/[。、！？\s]+/);
+  const uniqueWords = new Set(words);
+  if (words.length > 0 && uniqueWords.size / words.length < 0.7) {
+    score -= 1.0;
+    details.push('重複表現多数');
+  }
+  
+  const finalScore = Math.max(0, Math.min(10, score));
+  
+  if (details.length > 0) {
+    console.log(`品質スコア詳細 (${finalScore.toFixed(1)}): ${details.join(', ')}`);
+  }
+  
+  return finalScore;
 } 
