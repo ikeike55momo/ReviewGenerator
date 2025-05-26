@@ -104,8 +104,23 @@
   - 詳細エラーメッセージ追加（解決方法含む）
   - ビルドテスト: 正常完了
 
+## 2025-01-26 (続き): CSVヘッダーバリデーション修正
+
+### 🔧 CSVヘッダーバリデーション対応
+- **問題**: `human_patterns.csv - 必須ヘッダーが不足しています: gender`
+- **原因**: 各CSVファイル別のヘッダーバリデーションが不完全
+- **解決策**: 全CSVファイルの適切なヘッダーバリデーション追加
+- **修正内容**:
+  - **basic_rules.csv**: `['category', 'type', 'content']`
+  - **human_patterns.csv**: `['personality_type', 'age_group', 'gender', 'vocabulary', 'exclamation_marks', 'characteristics', 'example']`
+  - **qa_knowledge.csv**: `['question', 'answer', 'category', 'priority', 'example_situation', 'example_before', 'example_after']`
+  - **success_examples.csv**: `['review', 'age', 'gender', 'companion', 'word', 'recommend']`
+  - ヘッダーデバッグ情報強化（実際のヘッダー一覧表示）
+  - 型定義との整合性確保
+  - ビルドテスト: 正常完了
+
 ### 📋 次のステップ
-1. Netlifyデプロイテスト（CSVパース修正版）
+1. Netlifyデプロイテスト（CSVヘッダーバリデーション修正版）
 2. CSVファイルアップロードテスト（実際のファイルで検証）
 3. Supabaseデータベーステーブル作成
 4. システム接続テスト実行（ブラウザ経由）

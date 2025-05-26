@@ -25,9 +25,15 @@ export class CSVParserAgent extends Agent {
       const content = buffer.toString('utf-8');
       const lines = content.split('\n').slice(0, 5); // 最初の5行のみ
       
+      // ヘッダー行の詳細分析
+      const headerLine = lines[0];
+      const headers = headerLine ? headerLine.split(',').map(h => h.trim()) : [];
+      
       console.log(`CSVデバッグ情報 - ${filename}:`, {
         totalLength: content.length,
         lineCount: content.split('\n').length,
+        headers: headers,
+        headerCount: headers.length,
         firstFiveLines: lines.map((line, index) => ({
           lineNumber: index + 1,
           content: line,
@@ -66,9 +72,41 @@ export class CSVParserAgent extends Agent {
       const qaKnowledge = parse(files.qaKnowledge, parseOptions);
       const successExamples = parse(files.successExamples, parseOptions);
 
-      // Validate headers
-      if (!this.validateHeaders(Object.keys(basicRules[0]), ['category', 'type', 'content'])) {
-        throw new Error('Invalid basic_rules.csv headers');
+      // Validate headers for each CSV file
+      if (basicRules.length > 0) {
+        const basicRulesHeaders = Object.keys(basicRules[0]);
+        const expectedBasicRulesHeaders = ['category', 'type', 'content'];
+        if (!this.validateHeaders(basicRulesHeaders, expectedBasicRulesHeaders)) {
+          const missingHeaders = expectedBasicRulesHeaders.filter(h => !basicRulesHeaders.includes(h));
+          throw new Error(`basic_rules.csv - 必須ヘッダーが不足しています: ${missingHeaders.join(', ')}`);
+        }
+      }
+
+      if (humanPatterns.length > 0) {
+        const humanPatternsHeaders = Object.keys(humanPatterns[0]);
+        const expectedHumanPatternsHeaders = ['personality_type', 'age_group', 'gender', 'vocabulary', 'exclamation_marks', 'characteristics', 'example'];
+        if (!this.validateHeaders(humanPatternsHeaders, expectedHumanPatternsHeaders)) {
+          const missingHeaders = expectedHumanPatternsHeaders.filter(h => !humanPatternsHeaders.includes(h));
+          throw new Error(`human_patterns.csv - 必須ヘッダーが不足しています: ${missingHeaders.join(', ')}`);
+        }
+      }
+
+      if (qaKnowledge.length > 0) {
+        const qaKnowledgeHeaders = Object.keys(qaKnowledge[0]);
+        const expectedQaKnowledgeHeaders = ['question', 'answer', 'category', 'priority', 'example_situation', 'example_before', 'example_after'];
+        if (!this.validateHeaders(qaKnowledgeHeaders, expectedQaKnowledgeHeaders)) {
+          const missingHeaders = expectedQaKnowledgeHeaders.filter(h => !qaKnowledgeHeaders.includes(h));
+          throw new Error(`qa_knowledge.csv - 必須ヘッダーが不足しています: ${missingHeaders.join(', ')}`);
+        }
+      }
+
+      if (successExamples.length > 0) {
+        const successExamplesHeaders = Object.keys(successExamples[0]);
+        const expectedSuccessExamplesHeaders = ['review', 'age', 'gender', 'companion', 'word', 'recommend'];
+        if (!this.validateHeaders(successExamplesHeaders, expectedSuccessExamplesHeaders)) {
+          const missingHeaders = expectedSuccessExamplesHeaders.filter(h => !successExamplesHeaders.includes(h));
+          throw new Error(`success_examples.csv - 必須ヘッダーが不足しています: ${missingHeaders.join(', ')}`);
+        }
       }
 
       return {
