@@ -1,12 +1,94 @@
+/**
+ * レビュー関連の型定義
+ * 
+ * 概要:
+ * - レビュー生成リクエスト・レスポンス用の型定義
+ * - データベース連携対応
+ * - バッチ管理機能対応
+ * 
+ * 主な型:
+ * - ReviewRequest: レビュー生成リクエスト
+ * - GeneratedReview: 生成されたレビューデータ
+ * - GenerationBatch: バッチ管理情報
+ * 
+ * 制限事項:
+ * - データベーススキーマと一致させる必要がある
+ */
+
 export interface ReviewRequest {
-    age_group: string;
+    age_group?: string;
+    age?: string;
     gender: string;
     companion: string;
-    personality_type: string;
-  }
-  
-  export interface GeneratedReview {
+    personality_type?: string;
+    word?: string;
+    recommend?: string;
+    business_type?: string;
+    target_length?: number;
+    actual_length?: number;
+    generated_at?: string;
+    ai_generated?: boolean;
+    prompt_length?: number;
+    vocabulary?: string;
+    exclamation_marks?: string;
+    error?: boolean;
+    error_message?: string;
+}
+
+/**
+ * 生成されたレビュー情報（データベース連携対応）
+ */
+export interface GeneratedReview {
+    id?: string;
+    reviewText: string;
+    rating: number;
+    reviewerAge: number;
+    reviewerGender: 'male' | 'female' | 'other';
+    qualityScore: number;
+    generationPrompt?: string;
+    generationParameters?: any;
+    csvFileIds: string[];
+    generationBatchId?: string;
+    isApproved?: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+/**
+ * レビュー生成バッチ情報
+ */
+export interface GenerationBatch {
+    id?: string;
+    batchName?: string;
+    totalCount: number;
+    completedCount: number;
+    failedCount: number;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    generationParameters: any;
+    csvFileIds: string[];
+    startTime?: string;
+    endTime?: string;
+    errorMessage?: string;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+/**
+ * バッチ生成リクエスト
+ */
+export interface BatchGenerationRequest {
+    csvConfig: any;
+    batchSize: number;
+    batchCount: number;
+    customPrompt?: string;
+    batchName?: string;
+}
+
+/**
+ * レガシー型（後方互換性のため保持）
+ */
+export interface LegacyGeneratedReview {
     text: string;
     score: number;
     metadata: ReviewRequest;
-  }
+}

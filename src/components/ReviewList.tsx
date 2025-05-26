@@ -21,11 +21,11 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
    */
   const handleScoreFilter = (score: number) => {
     setMinScore(score);
-    setFilteredReviews(reviews.filter(review => review.score >= score));
+    setFilteredReviews(reviews.filter(review => (review.qualityScore * 10) >= score));
   };
 
   /**
-   * CSVダウンロード処理
+   * CSVダウンロード処理（success_examples.csv形式）
    */
   const handleDownloadCSV = () => {
     if (filteredReviews.length === 0) {
@@ -33,15 +33,29 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
       return;
     }
 
-    const csvHeaders = ['レビュー文', '品質スコア', '年齢層', '性別', '同伴者', '性格タイプ'];
-    const csvRows = filteredReviews.map(review => [
-      `"${review.text.replace(/"/g, '""')}"`, // CSVエスケープ
-      review.score.toFixed(1),
-      review.metadata.age_group,
-      review.metadata.gender,
-      review.metadata.companion,
-      review.metadata.personality_type,
-    ]);
+    // success_examples.csvの形式に合わせる
+    const csvHeaders = ['review', 'age', 'gender', 'companion', 'word', 'recommend'];
+    const csvRows = filteredReviews.map(review => {
+      // 年齢を文字列形式に変換
+      const ageString = `${review.reviewerAge}代`;
+      
+      // 性別を日本語に変換
+      const genderString = review.reviewerGender === 'male' ? '男性' : 
+                          review.reviewerGender === 'female' ? '女性' : 'その他';
+      
+      // generationParametersから使用されたキーワードと推奨フレーズを取得
+      const usedWords = review.generationParameters?.usedWords || '';
+      const selectedRecommendation = review.generationParameters?.selectedRecommendation || '日本酒好きに';
+      
+      return [
+        `"${review.reviewText.replace(/"/g, '""')}"`, // CSVエスケープ
+        ageString,
+        genderString,
+        '一人', // companionは常に一人（個人体験のみ）
+        usedWords, // バーティカルライン区切りのキーワード
+        selectedRecommendation // 使用された推奨フレーズ
+      ];
+    });
 
     const csvContent = [csvHeaders, ...csvRows]
       .map(row => row.join(','))
@@ -82,7 +96,7 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
   };
 
   const averageScore = filteredReviews.length > 0 
-    ? filteredReviews.reduce((sum, review) => sum + review.score, 0) / filteredReviews.length 
+    ? filteredReviews.reduce((sum, review) => sum + (review.qualityScore * 10), 0) / filteredReviews.length 
     : 0;
 
   return (
@@ -104,7 +118,7 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
           </div>
           <div>
             <p className="text-2xl font-bold text-orange-600">
-              {filteredReviews.filter(r => r.score >= 8).length}
+              {filteredReviews.filter(r => (r.qualityScore * 10) >= 8).length}
             </p>
             <p className="text-sm text-gray-600">高品質(8+)</p>
           </div>
@@ -157,11 +171,11 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
             <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center space-x-3">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${getScoreColorClass(review.score)}`}>
-                    スコア: {review.score.toFixed(1)}
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${getScoreColorClass(review.qualityScore * 10)}`}>
+                    スコア: {(review.qualityScore * 10).toFixed(1)}
                   </span>
                   <span className="text-xs text-gray-500">
-                    {review.metadata.age_group} / {review.metadata.gender} / {review.metadata.personality_type}
+                    {review.reviewerAge}歳 / {review.reviewerGender === 'male' ? '男性' : review.reviewerGender === 'female' ? '女性' : 'その他'} / {review.generationParameters?.selectedPattern?.personality_type || 'Medium型'}
                   </span>
                 </div>
                 <button
@@ -173,16 +187,26 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
               </div>
 
               <div className="text-gray-800 leading-relaxed">
-                {review.text}
+                {review.reviewText}
               </div>
 
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                  <span>同伴者: {review.metadata.companion}</span>
+                  <span>同伴者: 一人</span>
                   <span>•</span>
-                  <span>文字数: {review.text.length}文字</span>
+                  <span>推奨: {review.generationParameters?.selectedRecommendation || '日本酒好きに'}</span>
                   <span>•</span>
-                  <span>生成時刻: {new Date().toLocaleTimeString('ja-JP')}</span>
+                  <span>業種: {review.generationParameters?.selectedElements?.businessType || 'SHOGUN BAR'}</span>
+                  <span>•</span>
+                  <span>文字数: {review.reviewText.length}文字</span>
+                  {review.generationParameters?.targetLength && (
+                    <>
+                      <span>•</span>
+                      <span>目標: {review.generationParameters.targetLength}文字</span>
+                    </>
+                  )}
+                  <span>•</span>
+                  <span>生成時刻: {review.createdAt ? new Date(review.createdAt).toLocaleTimeString('ja-JP') : new Date().toLocaleTimeString('ja-JP')}</span>
                 </div>
               </div>
             </div>

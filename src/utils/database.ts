@@ -421,6 +421,57 @@ export const getActivePromptTemplate = async (templateName?: string): Promise<st
 };
 
 /**
+ * 生成バッチ一覧を取得
+ * @param {BatchStatus} status - バッチステータス（オプション）
+ * @param {number} limit - 取得件数制限（オプション）
+ * @returns {Promise<any[]>} バッチ一覧
+ */
+export const getGenerationBatches = async (
+  status?: BatchStatus,
+  limit?: number
+): Promise<any[]> => {
+  try {
+    let query = supabase
+      .from(TABLES.GENERATION_BATCHES)
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+
+    if (limit) {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(`バッチ一覧取得エラー: ${error.message}`);
+    }
+
+    return data.map(batch => ({
+      id: batch.id,
+      batchName: batch.batch_name,
+      totalCount: batch.total_count,
+      completedCount: batch.completed_count,
+      failedCount: batch.failed_count,
+      status: batch.status,
+      generationParameters: batch.generation_parameters,
+      csvFileIds: batch.csv_file_ids,
+      startTime: batch.start_time,
+      endTime: batch.end_time,
+      errorMessage: batch.error_message,
+      createdAt: batch.created_at,
+      updatedAt: batch.updated_at,
+    }));
+  } catch (error) {
+    console.error('バッチ一覧取得エラー:', error);
+    throw error;
+  }
+};
+
+/**
  * 品質ログを記録
  * @param {string} reviewId - レビューID
  * @param {string} qualityCheckType - 品質チェックタイプ
@@ -456,4 +507,117 @@ export const logQualityCheck = async (
     console.error('品質ログ記録エラー:', error);
     throw error;
   }
+};
+
+/**
+ * 既存のレビューテキストを全て取得（重複チェック用）
+ * @param {number} limit - 取得件数制限（デフォルト: 1000）
+ * @returns {Promise<string[]>} 既存レビューテキスト一覧
+ */
+export const getExistingReviews = async (limit: number = 1000): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase
+      .from(TABLES.GENERATED_REVIEWS)
+      .select('review_text')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(`既存レビュー取得エラー: ${error.message}`);
+    }
+
+    return data.map(review => review.review_text);
+  } catch (error) {
+    console.error('既存レビュー取得エラー:', error);
+    return []; // エラー時は空配列を返す
+  }
+};
+
+/**
+ * 生成バッチを削除（関連するレビューも削除）
+ * @param {string} batchId - 削除するバッチID
+ * @returns {Promise<void>}
+ */
+export const deleteGenerationBatch = async (batchId: string): Promise<void> => {
+  try {
+    console.log(`🗑️ バッチ削除開始: ${batchId}`);
+    
+    // 関連するレビューを先に削除
+    const { error: reviewsError } = await supabase
+      .from(TABLES.GENERATED_REVIEWS)
+      .delete()
+      .eq('generation_batch_id', batchId);
+
+    if (reviewsError) {
+      throw new Error(`関連レビュー削除エラー: ${reviewsError.message}`);
+    }
+
+    // 関連する品質ログを削除（まず関連するレビューIDを取得）
+    const { data: reviewIds } = await supabase
+      .from(TABLES.GENERATED_REVIEWS)
+      .select('id')
+      .eq('generation_batch_id', batchId);
+
+    if (reviewIds && reviewIds.length > 0) {
+      const { error: qualityLogsError } = await supabase
+        .from(TABLES.QUALITY_LOGS)
+        .delete()
+        .in('review_id', reviewIds.map(r => r.id));
+
+      // 品質ログの削除エラーは警告レベル
+      if (qualityLogsError) {
+        console.warn(`品質ログ削除警告: ${qualityLogsError.message}`);
+      }
+    }
+
+    // バッチ自体を削除
+    const { error: batchError } = await supabase
+      .from(TABLES.GENERATION_BATCHES)
+      .delete()
+      .eq('id', batchId);
+
+    if (batchError) {
+      throw new Error(`バッチ削除エラー: ${batchError.message}`);
+    }
+
+    console.log(`✅ バッチ削除完了: ${batchId}`);
+  } catch (error) {
+    console.error('バッチ削除エラー:', error);
+    throw error;
+  }
+};
+
+/**
+ * 複数の生成バッチを一括削除
+ * @param {string[]} batchIds - 削除するバッチID一覧
+ * @returns {Promise<{ success: number; failed: number; errors: string[] }>}
+ */
+export const deleteBatchesBulk = async (batchIds: string[]): Promise<{
+  success: number;
+  failed: number;
+  errors: string[];
+}> => {
+  const result = {
+    success: 0,
+    failed: 0,
+    errors: [] as string[]
+  };
+
+  console.log(`🗑️ 一括バッチ削除開始: ${batchIds.length}件`);
+
+  for (const batchId of batchIds) {
+    try {
+      await deleteGenerationBatch(batchId);
+      result.success++;
+      console.log(`✅ バッチ削除成功: ${batchId}`);
+    } catch (error) {
+      result.failed++;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      result.errors.push(`${batchId}: ${errorMessage}`);
+      console.error(`❌ バッチ削除失敗: ${batchId} - ${errorMessage}`);
+    }
+  }
+
+  console.log(`🎉 一括バッチ削除完了: 成功${result.success}件, 失敗${result.failed}件`);
+  return result;
 }; 

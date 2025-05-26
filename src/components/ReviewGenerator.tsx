@@ -90,7 +90,18 @@ OK例：「楽しめました」「体験できました」「満足できる内
    * 生成開始ハンドラー
    */
   const handleGenerate = () => {
-    if (isGenerating) return;
+    console.log('🎯 ReviewGenerator handleGenerate 開始:', { 
+      reviewCount, 
+      isGenerating, 
+      customPromptLength: customPrompt.length 
+    });
+    
+    if (isGenerating) {
+      console.log('⚠️ 既に生成中のため処理をスキップ');
+      return;
+    }
+    
+    console.log('📞 onGenerate呼び出し:', { reviewCount, customPrompt: customPrompt.substring(0, 100) + '...' });
     onGenerate(reviewCount, customPrompt);
   };
 

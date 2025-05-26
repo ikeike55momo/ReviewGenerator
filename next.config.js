@@ -33,7 +33,7 @@ const nextConfig = {
 
   // 出力設定（Netlify対応）
   // output: 'export', // 一時的に無効化（API Routes使用のため）
-  trailingSlash: true,
+  // trailingSlash: true, // 一時的に無効化（API Routes使用のため）
   
   // Webpack設定のカスタマイズ
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {

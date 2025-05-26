@@ -9,6 +9,7 @@ import Head from 'next/head';
 import { CSVUploader } from '../components/CSVUploader';
 import { ReviewGenerator } from '../components/ReviewGenerator';
 import { ReviewList } from '../components/ReviewList';
+import BatchManager from '../components/BatchManager';
 import { CSVConfig } from '../types/csv';
 import { GeneratedReview } from '../types/review';
 
@@ -18,6 +19,8 @@ export default function HomePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [systemStatus, setSystemStatus] = useState<any>(null);
   const [isTestingSystem, setIsTestingSystem] = useState(false);
+  const [activeMode, setActiveMode] = useState<'single' | 'batch'>('single');
+  const [customPrompt, setCustomPrompt] = useState<string>('');
 
   /**
    * CSVアップロード完了時のハンドラー
@@ -66,37 +69,69 @@ export default function HomePage() {
    * @param customPrompt カスタムプロンプト（オプション）
    */
   const handleGenerateReviews = async (reviewCount: number, customPrompt?: string) => {
+    console.log('🚀 handleGenerateReviews 開始:', { reviewCount, customPrompt: !!customPrompt, csvConfig: !!csvConfig });
+    
     if (!csvConfig) {
+      console.error('❌ CSVConfigが未設定');
       alert('CSVファイルをアップロードしてください');
       return;
     }
+
+    console.log('✅ CSVConfig確認完了:', {
+      basicRules: csvConfig.basicRules?.length || 0,
+      humanPatterns: csvConfig.humanPatterns?.length || 0,
+      qaKnowledge: csvConfig.qaKnowledge?.length || 0,
+      successExamples: csvConfig.successExamples?.length || 0
+    });
 
     setIsGenerating(true);
     setGeneratedReviews([]);
 
     try {
+      console.log('📡 API呼び出し開始...');
+      
+      const requestBody = {
+        csvConfig,
+        reviewCount,
+        customPrompt,
+      };
+      
+      console.log('📤 リクエストボディ:', {
+        csvConfigKeys: Object.keys(csvConfig),
+        reviewCount,
+        hasCustomPrompt: !!customPrompt
+      });
+
       const response = await fetch('/api/generate-reviews', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          csvConfig,
-          reviewCount,
-          customPrompt,
-        }),
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('📥 レスポンス受信:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
       });
 
       if (!response.ok) {
-        throw new Error(`APIエラー: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('❌ APIエラーレスポンス:', errorText);
+        throw new Error(`APIエラー: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const reviews: GeneratedReview[] = await response.json();
+      console.log('✅ レビュー生成完了:', { count: reviews.length, reviews: reviews.slice(0, 2) });
       setGeneratedReviews(reviews);
     } catch (error) {
-      console.error('レビュー生成エラー:', error);
+      console.error('❌ レビュー生成エラー:', error);
+      console.error('エラースタック:', error instanceof Error ? error.stack : 'スタック情報なし');
       alert(`レビュー生成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
     } finally {
+      console.log('🏁 handleGenerateReviews 終了');
       setIsGenerating(false);
     }
   };
@@ -120,7 +155,7 @@ export default function HomePage() {
             </p>
             
             {/* システムテストボタン */}
-            <div className="mt-4">
+            <div className="mt-4 space-x-2">
               <button
                 onClick={handleSystemTest}
                 disabled={isTestingSystem}
@@ -131,6 +166,28 @@ export default function HomePage() {
                 }`}
               >
                 {isTestingSystem ? 'システムテスト中...' : 'システム接続テスト'}
+              </button>
+              
+              <button
+                onClick={async () => {
+                  console.log('🧪 デバッグテスト開始');
+                  try {
+                    const response = await fetch('/api/debug-test', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ test: 'debug data' })
+                    });
+                    const result = await response.json();
+                    console.log('✅ デバッグテスト結果:', result);
+                    alert(`デバッグテスト成功: ${result.message}`);
+                  } catch (error) {
+                    console.error('❌ デバッグテストエラー:', error);
+                    alert(`デバッグテストエラー: ${error}`);
+                  }
+                }}
+                className="px-4 py-2 rounded-md text-sm font-medium bg-green-600 text-white hover:bg-green-700"
+              >
+                デバッグテスト
               </button>
             </div>
           </header>
@@ -189,35 +246,96 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* CSVアップロードセクション */}
+          {/* モード切り替えセクション */}
           <section className="mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              1. CSVファイルアップロード
-            </h2>
-            <CSVUploader onUploadComplete={handleCsvUploadComplete} />
+            <div className="bg-white p-6 rounded-lg shadow">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                動作モード選択
+              </h2>
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setActiveMode('single')}
+                  className={`px-6 py-3 rounded-md font-medium ${
+                    activeMode === 'single'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  🎯 単発生成モード
+                </button>
+                <button
+                  onClick={() => setActiveMode('batch')}
+                  className={`px-6 py-3 rounded-md font-medium ${
+                    activeMode === 'batch'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  🚀 バッチ生成モード
+                </button>
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                {activeMode === 'single' 
+                  ? '1-100件の単発レビュー生成（メモリ上のみ）'
+                  : '大量バッチ生成・履歴管理・CSV一括出力（データベース連携）'
+                }
+              </div>
+            </div>
           </section>
 
-          {/* レビュー生成セクション */}
-          {csvConfig && (
-            <section className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                2. レビュー生成設定
-              </h2>
-              <ReviewGenerator
-                onGenerate={handleGenerateReviews}
-                isGenerating={isGenerating}
-              />
-            </section>
-          )}
+          {activeMode === 'single' ? (
+            <>
+              {/* CSVアップロードセクション */}
+              <section className="mb-8">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  1. CSVファイルアップロード
+                </h2>
+                <CSVUploader onUploadComplete={handleCsvUploadComplete} />
+              </section>
 
-          {/* レビュー結果セクション */}
-          {generatedReviews.length > 0 && (
-            <section className="mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">
-                3. 生成結果
-              </h2>
-              <ReviewList reviews={generatedReviews} />
-            </section>
+              {/* レビュー生成セクション */}
+              {csvConfig && (
+                <section className="mb-8">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                    2. レビュー生成設定
+                  </h2>
+                  <ReviewGenerator
+                    onGenerate={handleGenerateReviews}
+                    isGenerating={isGenerating}
+                  />
+                </section>
+              )}
+
+              {/* レビュー結果セクション */}
+              {generatedReviews.length > 0 && (
+                <section className="mb-8">
+                  <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                    3. 生成結果
+                  </h2>
+                  <ReviewList reviews={generatedReviews} />
+                </section>
+              )}
+            </>
+          ) : (
+            <>
+              {/* CSVアップロードセクション（バッチモード用） */}
+              <section className="mb-8">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  1. CSVファイルアップロード
+                </h2>
+                <CSVUploader onUploadComplete={handleCsvUploadComplete} />
+              </section>
+
+              {/* バッチ管理セクション */}
+              {csvConfig && (
+                <section className="mb-8">
+                  <BatchManager 
+                    csvConfig={csvConfig} 
+                    customPrompt={customPrompt}
+                  />
+                </section>
+              )}
+            </>
           )}
         </div>
       </main>

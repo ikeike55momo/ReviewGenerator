@@ -1,0 +1,27 @@
+{
+  "csvConfig": {
+    "basicRules": [
+      {"category": "required_elements", "type": "area", "content": "池袋"},
+      {"category": "required_elements", "type": "business_type", "content": "バー"},
+      {"category": "required_elements", "type": "usp", "content": "抹茶カクテル"},
+      {"category": "required_elements", "type": "usp", "content": "山廃仕込みの日本酒"},
+      {"category": "required_elements", "type": "environment", "content": "アクセス抜群"},
+      {"category": "required_elements", "type": "sub", "content": "日本文化"},
+      {"category": "recommendation_phrases", "type": "phrase", "content": "日本酒好きに"}
+    ],
+    "humanPatterns": [
+      {
+        "age_group": "20代",
+        "personality_type": "Medium型",
+        "vocabulary": "標準的な語彙を使用",
+        "exclamation_marks": "1-2個",
+        "characteristics": "自然で親しみやすい表現",
+        "example": "美味しかったです！また行きたいと思います。"
+      }
+    ],
+    "qaKnowledge": [],
+    "successExamples": []
+  },
+  "reviewCount": 1,
+  "customPrompt": "テスト用の短いレビューを生成してください"
+} 

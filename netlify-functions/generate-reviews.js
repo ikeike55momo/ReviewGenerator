@@ -34,6 +34,12 @@ exports.handler = async (event, context) => {
 
   try {
     console.log('=== CSV駆動AI創作システム 開始 ===');
+    console.log('🔥 Netlify Function 呼び出し確認:', {
+      httpMethod: event.httpMethod,
+      path: event.path,
+      headers: event.headers,
+      bodyExists: !!event.body
+    });
     
     // リクエストボディをパース
     const requestBody = JSON.parse(event.body || '{}');
