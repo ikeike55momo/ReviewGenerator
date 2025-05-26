@@ -190,19 +190,21 @@ ${relevantSuccessExamples.map(example => `「${example.review}」`).join('\n\n')
 - 絵文字は絶対に使用しない（感嘆符や句読点のみ使用）
 - サブ要素${selectedSubs.length > 0 ? `「${selectedSubs.join('」「')}」を体験談に自然に含める` : 'は使用しない'}
 
-❌ 絶対禁止：
+❌ 絶対禁止事項（CSV品質管理ルール準拠）：
 - 「Note:」「注意:」「備考:」「特徴:」「解説:」などの説明文は一切付けない
 - 解説や分析は一切含めない
 - メタ情報や特徴説明は絶対に含めない
+- 具体的な武将名（源義経、織田信長等）は絶対使用禁止
+- 関係ない酒類（スコッチ、バーボン等）は絶対使用禁止
+- 武器・武術関連（日本刀、抜刀術等）は絶対使用禁止
 - 上記で指定されていないキーワードの勝手な追加は禁止
 - 指定されたワード以外の店舗特徴や商品名の創作は禁止
-- 「源義経」「織田信長」等の具体的な武将名は使用禁止
-- 「スコッチ」「バーボン」等の関係ない酒類は使用禁止
 
 🎯 出力形式：純粋なレビューテキストのみ
 - 説明文、注釈、解説は一切含めない
 - レビュー本文以外は絶対に出力しない
 - 改行後の追加情報も一切禁止
+- 品質管理システムが自動チェックして違反時は再生成
 
 ${customPrompt ? `\n追加指示:\n${customPrompt}` : ''}
 `;
@@ -270,11 +272,14 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
           if (response.content && response.content[0] && response.content[0].text) {
             let generatedText = response.content[0].text.trim();
             
-            // 余計なNote説明文を除去
-            generatedText = generatedText.replace(/\n\nNote:[\s\S]*$/, ''); // Note以降を削除
-            generatedText = generatedText.replace(/\n注意:[\s\S]*$/, ''); // 注意以降を削除
-            generatedText = generatedText.replace(/\n備考:[\s\S]*$/, ''); // 備考以降を削除
-            generatedText = generatedText.replace(/\n\n.*特徴[\s\S]*$/, ''); // 特徴説明を削除
+            // 余計なNote説明文を完全除去（より厳密に）
+            generatedText = generatedText.replace(/\n\nNote:[\s\S]*$/i, ''); // Note以降を削除
+            generatedText = generatedText.replace(/\n注意:[\s\S]*$/i, ''); // 注意以降を削除
+            generatedText = generatedText.replace(/\n備考:[\s\S]*$/i, ''); // 備考以降を削除
+            generatedText = generatedText.replace(/\n特徴:[\s\S]*$/i, ''); // 特徴以降を削除
+            generatedText = generatedText.replace(/\n解説:[\s\S]*$/i, ''); // 解説以降を削除
+            generatedText = generatedText.replace(/\n\n.*特徴[\s\S]*$/i, ''); // 特徴説明を削除
+            generatedText = generatedText.replace(/Note:[\s\S]*$/i, ''); // 行頭のNoteも削除
             generatedText = generatedText.trim();
             
             console.log('Claude API Success:', { 
@@ -310,6 +315,83 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
     req.write(postData);
     req.end();
   });
+}
+
+/**
+ * CSV駆動禁止表現チェック関数
+ * qa_knowledge.csvの禁止表現ルールに基づいてレビューテキストをチェック
+ */
+function checkProhibitedExpressions(reviewText: string, csvConfig: CSVConfig): {
+  hasViolation: boolean;
+  violatedTerms: string[];
+} {
+  const { qaKnowledge } = csvConfig;
+  const violatedTerms: string[] = [];
+  
+  // qa_knowledge.csvから禁止表現を抽出
+  const prohibitedRules = qaKnowledge?.filter(qa => 
+    qa.category === '禁止表現検出' && 
+    (qa.priority === 'Critical' || qa.priority === 'High')
+  ) || [];
+  
+  for (const rule of prohibitedRules) {
+    // example_beforeに含まれる禁止表現をチェック
+    if (rule.example_before && reviewText.includes(rule.example_before)) {
+      violatedTerms.push(rule.example_before);
+    }
+    
+    // 特定の禁止パターンをチェック
+    if (rule.question.includes('武将名') && 
+        (reviewText.includes('源義経') || reviewText.includes('織田信長') || 
+         reviewText.includes('豊臣秀吉') || reviewText.includes('徳川家康'))) {
+      violatedTerms.push('具体的武将名');
+    }
+    
+    if (rule.question.includes('酒類') && 
+        (reviewText.includes('スコッチ') || reviewText.includes('バーボン') || 
+         reviewText.includes('ウォッカ') || reviewText.includes('ジン'))) {
+      violatedTerms.push('関係ない酒類');
+    }
+    
+    if (rule.question.includes('武術') && 
+        (reviewText.includes('日本刀') || reviewText.includes('抜刀術') || 
+         reviewText.includes('武術') || reviewText.includes('刀剣'))) {
+      violatedTerms.push('武術関連');
+    }
+  }
+  
+  return {
+    hasViolation: violatedTerms.length > 0,
+    violatedTerms: violatedTerms
+  };
+}
+
+/**
+ * 年代の正規化関数
+ * human_patterns.csvの年代設定を正しく処理
+ */
+function normalizeAgeGroup(ageGroup: string): number {
+  // 年代文字列の正規化
+  const cleanAgeGroup = ageGroup.trim();
+  
+  // 「60代以上」の特別処理
+  if (cleanAgeGroup.includes('60代以上') || cleanAgeGroup.includes('60以上')) {
+    return 60;
+  }
+  
+  // 「○代」形式の処理
+  const match = cleanAgeGroup.match(/(\d+)代/);
+  if (match) {
+    const decade = parseInt(match[1]);
+    // 有効な年代範囲チェック（10-60）
+    if (decade >= 10 && decade <= 60) {
+      return decade;
+    }
+  }
+  
+  // フォールバック：20代
+  console.warn(`⚠️ 不正な年代設定: "${ageGroup}" -> 20代にフォールバック`);
+  return 20;
 }
 
 /**
@@ -626,6 +708,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // Claude API呼び出し
           reviewText = await callClaudeAPI(uniquePrompt, anthropicApiKey);
           
+          // CSV駆動禁止表現チェック
+          const prohibitedCheckResult = checkProhibitedExpressions(reviewText, csvConfig);
+          if (prohibitedCheckResult.hasViolation) {
+            console.log(`⚠️ 禁止表現検出: ${prohibitedCheckResult.violatedTerms.join(', ')} - 再生成します (試行${attempts}回目)`);
+            continue; // 再生成
+          }
+          
                       // グローバル重複チェック（既存レビュー + 今回生成分）
             const allExistingTexts = [...existingReviews, ...generatedTexts];
             
@@ -640,7 +729,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 if (similarity > maxSimilarity) {
                   maxSimilarity = similarity;
                 }
-                if (similarity > 0.6) { // 閾値を0.6に緩和
+                if (similarity > 0.6) { // 類似度閾値60%
                   isSimilar = true;
                   console.log(`⚠️ 類似レビュー検出 (類似度: ${(similarity * 100).toFixed(1)}%) - 再生成します`);
                   break;
@@ -664,11 +753,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
         
-        // 最大試行回数に達した場合
-        const allExistingTexts = [...existingReviews, ...generatedTexts];
-        if (attempts >= maxAttempts && (allExistingTexts.includes(reviewText) || allExistingTexts.some(text => calculateSimilarity(reviewText, text) > 0.6))) {
-          console.error(`❌ レビュー ${i + 1}: ${maxAttempts}回試行しても重複を回避できませんでした`);
-          reviewText = `【重複回避失敗】${reviewText}`;
+        // 最大試行回数に達した場合でも重複マークは付けない
+        if (attempts >= maxAttempts) {
+          console.warn(`⚠️ レビュー ${i + 1}: ${maxAttempts}回試行完了 - 最終結果を採用`);
           // 最後の試行結果を使用
           if (!finalPromptResult || !finalRandomPattern) {
             finalPromptResult = buildDynamicPrompt(csvConfig, csvConfig.humanPatterns[0], customPrompt);
@@ -692,9 +779,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         };
         const qualityScore = calculateQualityScore(reviewText, csvConfig, finalRandomPattern, selectedElements);
         
-        // 年齢・性別を設定
+        // 年齢・性別を設定（正規化関数を使用）
         const ageGroup = finalRandomPattern.age_group || '20代';
-        const ageDecade = parseInt(ageGroup.replace('代', '')); // 年代（10, 20, 30, 40, 50, 60）
+        const ageDecade = normalizeAgeGroup(ageGroup); // 正規化された年代（10, 20, 30, 40, 50, 60）
         const genderRandom = Math.random();
         const reviewerGender: 'male' | 'female' | 'other' = 
           genderRandom > 0.6 ? 'male' : genderRandom > 0.3 ? 'female' : 'other';
