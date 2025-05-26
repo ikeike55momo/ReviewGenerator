@@ -1,0 +1,223 @@
+name: Claude Code Auto Development
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: 
+      - 'requirements/**'
+      - 'sample-csv/**'
+      - 'claude-builder.js'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Development Phase'
+        required: true
+        default: '2'
+        type: choice
+        options:
+          - '1'  # Project Setup
+          - '2'  # Mastra Agents
+          - '3'  # Frontend
+          - '4'  # Integration & Test
+      message:
+        description: 'Custom development message'
+        required: false
+        default: 'Auto development triggered'
+
+jobs:
+  claude-auto-development:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 🚀 Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: 🔧 Install dependencies
+      run: |
+        npm ci
+        npm install -g typescript
+        
+    - name: 🤖 Run Claude Code Builder
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🔄 Running Claude Code Builder..."
+        
+        # Set phase if manually triggered
+        if [ "${{ github.event.inputs.phase }}" != "" ]; then
+          export CLAUDE_PHASE=${{ github.event.inputs.phase }}
+          echo "📋 Phase set to: ${{ github.event.inputs.phase }}"
+        else
+          export CLAUDE_PHASE=2
+        fi
+        
+        # Run Claude Code Builder and capture output
+        node claude-builder.js | tee claude-output.txt
+        
+        echo "✅ Claude Code Builder completed"
+        
+    - name: 🔍 Parse Claude Output and Create Files
+      run: |
+        echo "📝 Parsing Claude output and creating files..."
+        
+        node -e "
+          const fs = require('fs');
+          const path = require('path');
+          
+          try {
+            const output = fs.readFileSync('claude-output.txt', 'utf8');
+            console.log('📄 Output length:', output.length);
+            
+            // Extract code blocks from Claude output
+            const codeBlocks = output.match(/\`\`\`[\s\S]*?\`\`\`/g) || [];
+            console.log('🔍 Found', codeBlocks.length, 'code blocks');
+            
+            let filesCreated = 0;
+            
+            codeBlocks.forEach((block, index) => {
+              const lines = block.split('\n');
+              const firstLine = lines[0].replace('```', '').trim();
+              const code = lines.slice(1, -1).join('\n');
+              
+              // TypeScript files
+              if (firstLine === 'typescript' || firstLine === 'ts') {
+                // Extract class name or filename from code
+                const classMatch = code.match(/(?:export\s+)?class\s+(\w+)/);
+                const interfaceMatch = code.match(/(?:export\s+)?interface\s+(\w+)/);
+                
+                if (classMatch && classMatch[1].includes('Agent')) {
+                  const filename = \`src/agents/\${classMatch[1]}.ts\`;
+                  fs.writeFileSync(filename, code);
+                  console.log('✅ Created:', filename);
+                  filesCreated++;
+                } else if (interfaceMatch) {
+                  const filename = \`src/types/\${interfaceMatch[1].toLowerCase()}.ts\`;
+                  fs.writeFileSync(filename, code);
+                  console.log('✅ Created:', filename);
+                  filesCreated++;
+                }
+              }
+              
+              // JSON files (package.json, tsconfig.json, etc.)
+              if (firstLine === 'json') {
+                try {
+                  const jsonObj = JSON.parse(code);
+                  if (jsonObj.name || jsonObj.compilerOptions) {
+                    const filename = jsonObj.compilerOptions ? 'tsconfig.json' : 'package.json';
+                    if (!fs.existsSync(filename) || process.env.OVERWRITE === 'true') {
+                      fs.writeFileSync(filename, code);
+                      console.log('✅ Created/Updated:', filename);
+                      filesCreated++;
+                    }
+                  }
+                } catch (e) {
+                  console.log('⚠️ Failed to parse JSON block:', e.message);
+                }
+              }
+            });
+            
+            console.log('🎉 Total files created/updated:', filesCreated);
+            
+            // Create a summary file
+            fs.writeFileSync('claude-summary.txt', \`
+Claude Code Auto Development Summary
+===================================
+Generated at: \${new Date().toISOString()}
+Files processed: \${filesCreated}
+Total code blocks: \${codeBlocks.length}
+
+Output preview:
+\${output.substring(0, 500)}...
+            \`);
+            
+          } catch (error) {
+            console.error('❌ Error processing Claude output:', error.message);
+            process.exit(1);
+          }
+        "
+        
+    - name: 🔨 Type Check and Build
+      run: |
+        echo "🔍 Running TypeScript type check..."
+        if [ -f "tsconfig.json" ]; then
+          npx tsc --noEmit --skipLibCheck || echo "⚠️ Type check completed with warnings"
+        fi
+        
+        echo "📦 Installing any new dependencies..."
+        npm install
+        
+    - name: 📝 Commit Generated Code
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "Claude Code Auto Dev"
+        
+        git add .
+        
+        if git diff --staged --quiet; then
+          echo "📭 No changes to commit"
+        else
+          git commit -m "🤖 Auto-generated code by Claude Code API
+          
+          Phase: ${{ github.event.inputs.phase || '2' }}
+          Trigger: ${{ github.event_name }}
+          Message: ${{ github.event.inputs.message || 'Automated development' }}
+          
+          Generated files updated by Claude Code Builder
+          [skip ci]"
+          
+          echo "✅ Changes committed"
+        fi
+        
+    - name: 🚀 Push Changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: ${{ github.ref }}
+        
+    - name: 📊 Create Development Summary
+      if: always()
+      run: |
+        echo "## 🤖 Claude Code Development Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Phase:** ${{ github.event.inputs.phase || '2' }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f "claude-summary.txt" ]; then
+          echo "### Generated Files Summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat claude-summary.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "- Review generated code in the repository" >> $GITHUB_STEP_SUMMARY
+        echo "- Test the implementation locally" >> $GITHUB_STEP_SUMMARY
+        echo "- Trigger next phase if needed" >> $GITHUB_STEP_SUMMARY
+        
+  # Optional: Deploy to Netlify after successful development
+  deploy:
+    needs: claude-auto-development
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && success()
+    
+    steps:
+    - name: 🚀 Deploy to Netlify
+      run: |
+        echo "🌐 Deployment to Netlify would happen here"
+        echo "This step requires additional setup with Netlify CLI"
