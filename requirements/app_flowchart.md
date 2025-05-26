@@ -1,0 +1,13 @@
+flowchart TD
+  StoreSelection[Select Store] **-->** CSVUpload[Drag and Drop CSV Upload]
+  CSVUpload **-->** PreviewValidation[CSV Preview and Validation]
+  PreviewValidation **-->** CSVParser[CSVParser Agent]
+  CSVParser **-->** DynamicPrompt[Dynamic Prompt Builder Agent]
+  DynamicPrompt **-->** ReviewGen[Review Generator Agent]
+  ReviewGen **-->** QualityCtrl[Quality Controller Agent]
+  QualityCtrl **-->** DB[Save to Supabase]
+  DB **-->** UI[Display Reviews in Real Time]
+  UI **-->** Slider[Set Number of Reviews Slider]
+  UI **-->** PromptEdit[Edit Prompt]
+  UI **-->** Regen[Regenerate Individual Review]
+  UI **-->** Download[Download Results as CSV]

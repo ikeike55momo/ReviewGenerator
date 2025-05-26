@@ -1,0 +1,36 @@
+category,type,content
+output_format,format,CSV: review,age,gender,companion,word,recommend
+humanness_points,key_point,完璧すぎない自然な文章
+humanness_points,key_point,個人的な感情・体験を含む
+humanness_points,key_point,具体的な描写と曖昧な部分の混在
+humanness_points,key_point,文体の微妙な不統一（人間的特徴）
+required_elements,area,池袋
+required_elements,area,池袋西口
+required_elements,business_type,バー
+required_elements,business_type,SHOGUN BAR
+required_elements,business_type,エンタメバー
+required_elements,usp,抹茶カクテル
+required_elements,usp,山廃仕込みの日本酒
+required_elements,usp,飲み放題
+required_elements,usp,飲み比べ
+required_elements,usp,巨大おちょこチャレンジ
+required_elements,usp,侍のコスプレ体験
+required_elements,environment,アクセス抜群
+required_elements,environment,和モダンな内装
+required_elements,environment,写真映えする店内装飾
+required_elements,environment,和文化を体験
+required_elements,environment,完全予約制
+prohibited_expressions,expression,ふらっと
+prohibited_expressions,expression,偶然
+prohibited_expressions,expression,たまたま
+prohibited_expressions,expression,立ち寄り
+prohibited_expressions,format,SHOGUN BAR（池袋西口）形式
+prohibited_expressions,main_feature,和風照明の主要推し
+prohibited_expressions,companion_mention,友達と
+prohibited_expressions,companion_mention,彼女と等の同伴者言及
+recommendation_phrases,phrase,日本酒好きに
+recommendation_phrases,phrase,二次会に
+recommendation_phrases,phrase,池袋観光の思い出に
+recommendation_phrases,phrase,いつもと違うデートに
+recommendation_phrases,phrase,誕生日や特別な日に
+recommendation_phrases,phrase,外国人観光客に

@@ -1,0 +1,146 @@
+---
+description: Apply these rules when creating the project
+globs:
+alwaysApply: true
+---
+## Project Overview
+
+*   **Type:** CSV-Driven Review Generator Agent
+*   **Description:** Automate the creation of natural, human-like Japanese reviews from CSV data, tailored to specific businesses and avoiding AI detection.
+*   **Primary Goal:** Automate review generation pipeline (“CSV In, Natural Reviews Out”) with demographic, tone, and quality controls.
+
+## Project Structure
+
+### Framework-Specific Routing
+
+*   **Directory Rules:**
+
+    *   Next.js 14 (App Router): Implement routes under `app/[route]/page.tsx` and API handlers under `app/api/[endpoint]/route.ts`
+    *   Example 1: `app/stores/page.tsx` → Store selection UI
+    *   Example 2: `app/upload/page.tsx` → CSV upload UI
+    *   Example 3: `app/api/generate/route.ts` → Review generation endpoint
+
+### Core Directories
+
+*   **Versioned Structure:**
+
+    *   `app/api` → Next.js 14 API routes with Route Handlers (CSV parsing, generation, quality checks)
+    *   `app/(ui)` → shadcn/ui and Tailwind-powered shared components
+    *   `app/(agents)` → Mastra agents orchestration
+    *   `app/(layout)` → Global layouts and templates
+
+### Key Files
+
+*   **Stack-Versioned Patterns:**
+
+    *   `app/layout.tsx` → Next.js 14 root layout (HTML, head, global providers)
+    *   `app/page.tsx` → Landing page with project overview
+    *   `app/stores/page.tsx` → Store configuration dropdown
+    *   `app/upload/page.tsx` → Drag-and-drop CSV upload
+    *   `app/prompt/page.tsx` → Prompt customization UI
+    *   `app/generate/page.tsx` → Generation settings and real-time stream
+    *   `app/api/generate/route.ts` → Claude Sonnet 4 invocation and streaming handler
+    *   `app/api/quality/route.ts` → QualityControllerAgent filter endpoint
+
+## Tech Stack Rules
+
+*   **Version Enforcement:**
+
+    *   next@14: App Router required; no `getInitialProps`; use server actions for form submissions
+    *   typescript@5: `strict` mode enabled; no `any` except in CSVParser internals
+    *   tailwindcss@3: JIT mode; use `@tailwind base`, `@tailwind components`, `@tailwind utilities`
+    *   shadcn/ui@latest: Prefer component variants and `slot` system
+    *   mastra@1: Modular agent pattern; one agent per responsibility
+    *   supabase-js@2: Use edge-compatible client; no direct SQL strings in UI code
+
+## PRD Compliance
+
+*   "Generate 20 reviews in under 2 minutes": Optimize Claude Sonnet 4 calls and streaming
+*   "CSV processing in under 5 seconds": CSVParserAgent must batch-process uploads
+*   "UI response in under 0.5 seconds": Leverage React Server and Client Components appropriately
+*   "AI detection avoidance > 95%": Implement NaturalnessScorer in QualityControllerAgent
+
+## App Flow Integration
+
+*   Store Selection → `app/stores/page.tsx`
+*   CSV Upload → `app/upload/page.tsx` calls CSVParserAgent via `app/api/csv/route.ts`
+*   Prompt Configuration → `app/prompt/page.tsx` uses DynamicPromptBuilderAgent
+*   Generation Settings & Execution → `app/generate/page.tsx` sends to ReviewGeneratorAgent at `app/api/generate/route.ts`
+*   Quality Verification → Stream through QualityControllerAgent at `app/api/quality/route.ts`
+*   Regeneration → `app/regenerate/[reviewId]/page.tsx` triggers partial re-generation
+*   Export → `app/api/export/route.ts` returns final CSV
+
+## Best Practices
+
+*   Next.js 14
+
+    *   Use App Router with server and client components separation
+    *   Leverage server actions for form submissions
+    *   Co-locate CSS modules with components only if needed
+
+*   TypeScript
+
+    *   Enable `strict` and `noImplicitAny`
+    *   Define clear interfaces for CSV schemas
+    *   Avoid `any` by using generics and utility types
+
+*   Tailwind CSS
+
+    *   Use `@apply` for shared utility classes
+    *   Define a custom theme in `tailwind.config.js`
+    *   Purge unused styles in production
+
+*   shadcn/ui
+
+    *   Follow component variant patterns
+    *   Wrap pages in `ThemeProvider` and `Toaster`
+
+*   Mastra Framework
+
+    *   One agent per concern (CSVParser, DynamicPromptBuilder, ReviewGenerator, QualityController)
+    *   Agents return strictly typed payloads
+    *   Handle errors centrally and stream logs to UI
+
+*   Supabase
+
+    *   Use parameterized queries
+    *   Handle pagination and streaming for large data sets
+    *   Use Row Level Security only if multi-user is added later
+
+*   Anthropic Claude Sonnet 4
+
+    *   Stream tokens to UI for progress
+    *   Batch prompt inputs for demographic distribution
+    *   Handle rate limits and retries
+
+## Rules
+
+*   Derive folder/file patterns directly from techStackDoc versions.
+*   If Next.js 14 App Router: Enforce `app/` directory with nested route folders.
+*   Never mix Pages Router (`pages/`) with App Router (`app/`).
+*   Use `app/api/[name]/route.ts` for all backend logic; no `pages/api`.
+*   Co-locate related agents under `app/(agents)/`.
+*   All UI components must live in `app/(ui)/` and use shadcn/ui patterns.
+
+## Rules Metrics
+
+Before starting the project development, create a metrics file in the root of the project called `cursor_metrics.md`.
+
+### Instructions:
+
+*   Each time a cursor rule is used as context, update `cursor_metrics.md`.
+*   Use the following format for `cursor_metrics.md`:
+
+    # Rules Metrics
+
+    ## Usage
+    The number of times rules is used as context
+
+    *   framework-specific-routing.mdc: 0
+    *   core-directories.mdc: 0
+    *   key-files.mdc: 0
+    *   tech-stack-rules.mdc: 0
+    *   prd-compliance.mdc: 0
+    *   app-flow-integration.mdc: 0
+    *   best-practices.mdc: 0
+    *   general-rules.mdc: 0
