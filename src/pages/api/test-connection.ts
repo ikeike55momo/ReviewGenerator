@@ -126,9 +126,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const qualityControllerAgent = new QualityControllerAgent();
 
     results.push({
-      component: 'Mastraエージェントフレームワーク',
+      component: 'CSV Review Agents',
       status: 'success',
-      message: 'All Mastra agents initialized successfully',
+      message: 'All agents initialized successfully',
       details: {
         csvParserAgent: 'Initialized',
         promptBuilderAgent: 'Initialized',
@@ -137,9 +137,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
   } catch (error) {
     results.push({
-      component: 'Mastraエージェントフレームワーク',
+      component: 'CSV Review Agents',
       status: 'error',
-      message: 'Failed to initialize Mastra agents',
+      message: 'Failed to initialize agents',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }

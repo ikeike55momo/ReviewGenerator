@@ -26,11 +26,20 @@
 - ✅ ReviewGeneratorAgent: Mastra Agent継承完了
 - ✅ QualityControllerAgent: Mastra Agent継承完了
 
+## 2025-01-26 (続き): Netlifyビルドエラー修正
+
+### 🔧 Netlifyビルドエラー対応
+- **問題**: Mastraパッケージ依存関係でNetlifyビルド失敗
+- **解決策**: Netlify互換のため独立クラス実装に変更
+- **削除パッケージ**: `@mastra/core`, `mastra`, `@ai-sdk/anthropic`
+- **エージェント修正**: 全エージェントを独立クラスに戻す
+- **ビルドテスト**: ローカル・Netlify両方で正常動作確認
+
 ### 📋 次のステップ
-1. Supabaseデータベーステーブル作成
-2. システム接続テスト実行（ブラウザ経由）
-3. 実際のレビュー生成テスト
-4. Netlifyデプロイテスト
+1. Netlifyデプロイテスト（修正版）
+2. Supabaseデータベーステーブル作成
+3. システム接続テスト実行（ブラウザ経由）
+4. 実際のレビュー生成テスト
 
 ### 🔧 技術スタック
 - **フレームワーク**: Mastraエージェントフレームワーク

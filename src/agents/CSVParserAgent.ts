@@ -1,20 +1,11 @@
 /**
  * @file CSVParserAgent
- * @description CSVパースエージェント。Mastraエージェントフレームワーク使用。
+ * @description CSVパースエージェント。Netlify互換の独立クラス実装。
  */
 import { parse } from 'csv-parse/sync';
 import { CSVConfig } from '../types/csv';
-import { Agent } from '@mastra/core';
-import { anthropic } from '@ai-sdk/anthropic';
 
-export class CSVParserAgent extends Agent {
-  constructor() {
-    super({
-      name: 'CSV Parser Agent',
-      instructions: 'CSVパースエージェント。CSVファイルの解析とバリデーションを行います。',
-      model: anthropic('claude-3-haiku-20240307'),
-    });
-  }
+export class CSVParserAgent {
 
   private validateHeaders(headers: string[], expectedHeaders: string[]): boolean {
     return expectedHeaders.every(h => headers.includes(h));
