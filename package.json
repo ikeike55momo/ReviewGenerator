@@ -14,11 +14,10 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "agents": "ts-node src/agents/index.ts",
-    "netlify-build": "npm run type-check && npm run build"
+    "clean": "rm -rf .next node_modules/.cache",
+    "netlify-build": "npm run clean && npm run type-check && npm run build"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.2.12",
     "@anthropic-ai/sdk": "^0.24.3",
     "@supabase/supabase-js": "^2.49.8",
     "@tailwindcss/aspect-ratio": "^0.4.2",

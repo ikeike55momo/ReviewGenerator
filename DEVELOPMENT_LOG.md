@@ -35,8 +35,19 @@
 - **エージェント修正**: 全エージェントを独立クラスに戻す
 - **ビルドテスト**: ローカル・Netlify両方で正常動作確認
 
+## 2025-01-26 (続き): Netlify Layoutエラー修正
+
+### 🔧 Netlify Layoutエラー対応
+- **問題**: `Module not found: Error: Can't resolve './components/Layout'`
+- **調査結果**: 実際のコードにLayoutコンポーネントの参照なし
+- **解決策**: Netlifyビルド設定最適化、キャッシュクリア、不要パッケージ削除
+- **修正内容**:
+  - `netlify.toml`: `npm ci`でクリーンインストール
+  - `package.json`: `@ai-sdk/anthropic`削除、cleanスクリプト追加
+  - ビルドテスト: ローカル正常動作確認
+
 ### 📋 次のステップ
-1. Netlifyデプロイテスト（修正版）
+1. Netlifyデプロイテスト（Layout修正版）
 2. Supabaseデータベーステーブル作成
 3. システム接続テスト実行（ブラウザ経由）
 4. 実際のレビュー生成テスト
