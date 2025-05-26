@@ -46,8 +46,19 @@
   - `package.json`: `@ai-sdk/anthropic`削除、cleanスクリプト追加
   - ビルドテスト: ローカル正常動作確認
 
+## 2025-01-26 (続き): TypeScript依存関係修正
+
+### 🔧 TypeScript依存関係最適化
+- **問題**: Netlifyビルドでtypescriptパッケージ認識エラー
+- **解決策**: TypeScript設定とパッケージ依存関係の最適化
+- **修正内容**:
+  - `@types/react-dom`をdevDependenciesに移動
+  - `tsconfig.json`: moduleResolution "bundler"に変更
+  - `netlify.toml`: TYPESCRIPT_ENABLED=true追加
+  - 型チェック・ビルドテスト: 正常完了
+
 ### 📋 次のステップ
-1. Netlifyデプロイテスト（Layout修正版）
+1. Netlifyデプロイテスト（TypeScript修正版）
 2. Supabaseデータベーステーブル作成
 3. システム接続テスト実行（ブラウザ経由）
 4. 実際のレビュー生成テスト

@@ -8,6 +8,7 @@
 [build.environment]
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
+  TYPESCRIPT_ENABLED = "true"
 
 [dev]
   command = "npm run dev"
