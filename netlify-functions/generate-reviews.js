@@ -146,7 +146,7 @@ exports.handler = async (event, context) => {
 
 /**
  * 高品質レビュー生成関数
- * CSVデータを活用して自然なレビューを生成
+ * success_examples.csvの品質レベルを目指した自然なレビュー生成
  */
 function generateTestReview(pattern, csvConfig, index) {
   // 必須要素を取得
@@ -158,72 +158,114 @@ function generateTestReview(pattern, csvConfig, index) {
   const storeName = requiredElements.find(elem => elem.includes('BAR') || elem.includes('SHOGUN')) || 'SHOGUN BAR';
   const location = requiredElements.find(elem => elem.includes('池袋') || elem.includes('西口')) || '池袋西口';
   
-  // 年代別の自然な表現
-  const ageExpressions = {
-    '10代': ['学生の私', '若い私', '10代の私'],
-    '20代': ['20代の私', '若手社会人の私', '私'],
-    '30代': ['30代の私', '私', 'アラサーの私'],
-    '40代': ['40代の私', '私', 'アラフォーの私'],
-    '50代': ['50代の私', '私', 'アラフィフの私'],
-    '60代': ['60代の私', '私', 'シニアの私']
-  };
-  
-  // 性格タイプ別の文体調整
-  const personalityStyles = {
+  // 性格タイプ別のリアルな表現パターン
+  const personalityPatterns = {
     'High型': {
+      problemExpressions: ['めちゃくちゃ混んでて入れるか心配だった', '期待してなかったけど', '正直不安だった'],
+      solutionWords: ['ビビりました', '感動しました', '最高でした', 'すごく良かった'],
       exclamations: ['！', '！！'],
-      positiveWords: ['最高', '素晴らしい', '感動', 'めちゃくちゃ良い'],
-      expressions: ['テンション上がりました', 'すごく楽しかった', '大満足']
-    },
-    'Medium型': {
-      exclamations: ['。', '！'],
-      positiveWords: ['良い', '満足', '楽しい', 'おすすめ'],
-      expressions: ['楽しく過ごせました', '満足できました', 'また行きたい']
-    },
-    'Low型': {
-      exclamations: ['。', '。'],
-      positiveWords: ['良かった', '悪くない', 'まあまあ', '普通に良い'],
-      expressions: ['落ち着いて過ごせました', 'のんびりできました', '居心地が良い']
-    },
-    'Formal型': {
-      exclamations: ['。', '。'],
-      positiveWords: ['品質が高い', '上質', '洗練された', '丁寧'],
-      expressions: ['品のある空間でした', '質の高いサービス', '上品な雰囲気']
+      intensifiers: ['めちゃくちゃ', 'すごく', 'マジで'],
+      recommendations: ['推せます', 'おすすめです', '絶対行くべき']
     },
     '超High型': {
+      problemExpressions: ['ガチで期待してなかった', 'マジで不安だった', '正直ダメかと思った'],
+      solutionWords: ['神でした', 'ヤバすぎ', '最強', 'やばい'],
       exclamations: ['！！', '！！！'],
-      positiveWords: ['やばい', '最強', '神', 'ヤバすぎ'],
-      expressions: ['テンション爆上がり', 'マジで最高', '神すぎる']
+      intensifiers: ['ガチで', 'マジで', 'めっちゃ', '超'],
+      recommendations: ['神すぎる', 'マジでおすすめ', '絶対行って']
+    },
+    'Medium型': {
+      problemExpressions: ['少し心配でしたが', '期待半分不安半分でしたが', '初めてで緊張しましたが'],
+      solutionWords: ['満足できました', '良かったです', '感動しました', '安心しました'],
+      exclamations: ['。', '！'],
+      intensifiers: ['とても', 'かなり', 'すごく'],
+      recommendations: ['おすすめします', 'おすすめです', '良いと思います']
+    },
+    'Low型': {
+      problemExpressions: ['少し不安でしたが', '心配でしたが', '緊張しましたが'],
+      solutionWords: ['安心しました', '良かったです', '満足です', '落ち着けました'],
+      exclamations: ['。', '。'],
+      intensifiers: ['とても', '結構', 'なかなか'],
+      recommendations: ['おすすめです', '良いと思います', '安心できます']
+    },
+    'Formal型': {
+      problemExpressions: ['多少の不安がありましたが', '初回で緊張いたしましたが', '期待と不安がありましたが'],
+      solutionWords: ['満足いたしました', '感銘を受けました', '素晴らしかったです', '上質でした'],
+      exclamations: ['。', '。'],
+      intensifiers: ['非常に', '大変', 'とても'],
+      recommendations: ['おすすめいたします', 'お勧めできます', '推奨いたします']
     }
   };
   
-  const ageGroup = pattern.age_group || '30代';
+  // 店舗固有の特徴（SHOGUN BAR想定）
+  const storeFeatures = [
+    '個室風の空間で落ち着いて過ごせる',
+    'ドリンクサービスがあって居心地が良い',
+    '清潔感のある店内',
+    'スタッフの方が親切で丁寧',
+    'リクライニングチェアでリラックスできる',
+    '衛生管理がしっかりしている',
+    'メイクルームもあって便利'
+  ];
+  
+  // 体験シナリオパターン
+  const experienceScenarios = [
+    {
+      problem: '仕事のストレスで疲れていて',
+      solution: 'リラックスできて気分転換になった',
+      result: 'また疲れた時に利用したい'
+    },
+    {
+      problem: '初めての利用で緊張していたけど',
+      solution: 'スタッフの方が優しくて安心できた',
+      result: '次回も安心して利用できそう'
+    },
+    {
+      problem: '時間がなくて急いでいたけど',
+      solution: 'スムーズに対応してもらえた',
+      result: '忙しい時でも利用しやすい'
+    },
+    {
+      problem: '他の店で嫌な思いをしたことがあって不安だったけど',
+      solution: 'ここは全然違って素晴らしかった',
+      result: 'もうここ以外は考えられない'
+    },
+    {
+      problem: '料金が心配だったけど',
+      solution: 'サービス内容を考えると納得の価格',
+      result: 'コスパが良いと思う'
+    }
+  ];
+  
   const personalityType = pattern.personality_type || 'Medium型';
-  const ageExpr = ageExpressions[ageGroup] ? 
-    ageExpressions[ageGroup][Math.floor(Math.random() * ageExpressions[ageGroup].length)] : '私';
+  const style = personalityPatterns[personalityType] || personalityPatterns['Medium型'];
   
-  const style = personalityStyles[personalityType] || personalityStyles['Medium型'];
+  // ランダム要素選択
+  const problemExpr = style.problemExpressions[Math.floor(Math.random() * style.problemExpressions.length)];
+  const solutionWord = style.solutionWords[Math.floor(Math.random() * style.solutionWords.length)];
   const exclamation = style.exclamations[Math.floor(Math.random() * style.exclamations.length)];
-  const positiveWord = style.positiveWords[Math.floor(Math.random() * style.positiveWords.length)];
-  const expression = style.expressions[Math.floor(Math.random() * style.expressions.length)];
+  const intensifier = style.intensifiers[Math.floor(Math.random() * style.intensifiers.length)];
+  const recommendation = style.recommendations[Math.floor(Math.random() * style.recommendations.length)];
+  const feature = storeFeatures[Math.floor(Math.random() * storeFeatures.length)];
+  const scenario = experienceScenarios[Math.floor(Math.random() * experienceScenarios.length)];
   
-  // 自然なレビューテンプレート（同伴者言及完全排除）
+  // success_examples.csv品質のレビューテンプレート
   const templates = [
-    `${location}にある${storeName}に行ってきました${exclamation}アクセスも良く、料理も${positiveWord}くて${expression}。スタッフの方も親切で、また利用したいと思います。`,
+    `${location}の${storeName}に行ってきました${exclamation}${scenario.problem}、${intensifier}${solutionWord}${exclamation}${feature}のも良かったです。${scenario.result}し、同じような方に${recommendation}${exclamation}`,
     
-    `${storeName}を利用しました${exclamation}${location}からすぐで便利ですね。料理のクオリティも高く、雰囲気も${positiveWord}感じでした。${expression}。`,
+    `${storeName}で${scenario.problem}、${problemExpr}実際に利用してみたら${intensifier}${solutionWord}${exclamation}${feature}し、${scenario.result}と思います。${recommendation}${exclamation}`,
     
-    `${storeName}での時間は${positiveWord}ものでした${exclamation}${location}エリアでは間違いなくおすすめのお店です。料理もドリンクも満足で、${expression}。`,
+    `${location}にある${storeName}を利用しました${exclamation}${scenario.problem}、スタッフの方が${intensifier}親切で${solutionWord}${exclamation}${feature}のも魅力的です。${recommendation}${exclamation}`,
     
-    `初めて${storeName}に行きましたが、想像以上に${positiveWord}お店でした${exclamation}${location}からのアクセスも良く、料理も期待を上回る美味しさ。${expression}。`,
+    `${storeName}に初めて行きました${exclamation}${problemExpr}、${intensifier}${solutionWord}${exclamation}${feature}し、${scenario.result}です。同じ悩みの方に${recommendation}${exclamation}`,
     
-    `${storeName}は${positiveWord}エンタメバーですね${exclamation}${location}という立地も魅力的で、料理とドリンクのバランスも良く、${expression}。また訪れたいです。`,
+    `${location}の${storeName}での体験は${solutionWord}${exclamation}${scenario.problem}、期待以上の結果で${intensifier}満足です${exclamation}${feature}のも嬉しいポイントでした。`,
     
-    `${storeName}で食事をしました${exclamation}${location}からアクセスしやすく、料理も${positiveWord}くて満足できました。${expression}。`,
+    `${storeName}を利用して${intensifier}${solutionWord}${exclamation}${scenario.problem}、ここなら安心だと思いました。${feature}し、${scenario.result}です。${recommendation}${exclamation}`,
     
-    `${storeName}の雰囲気が${positiveWord}くて気に入りました${exclamation}${location}という便利な立地で、料理のレベルも高く、${expression}。リピート確定です。`,
+    `${location}エリアで${storeName}を見つけて利用しました${exclamation}${problemExpr}、実際は${intensifier}${solutionWord}${exclamation}${feature}のが特に印象的でした。`,
     
-    `${storeName}を利用しました${exclamation}${location}からすぐで、料理も美味しく、雰囲気も${positiveWord}感じ。${expression}。おすすめできるお店です。`
+    `${storeName}での時間は${intensifier}${solutionWord}${exclamation}${scenario.problem}、ここで解決できて本当に良かったです。${feature}のも安心できるポイントです。${recommendation}${exclamation}`
   ];
   
   return templates[index % templates.length];
