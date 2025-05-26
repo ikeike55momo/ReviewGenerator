@@ -20,6 +20,25 @@ export class CSVParserAgent extends Agent {
     return expectedHeaders.every(h => headers.includes(h));
   }
 
+  private debugCSVStructure(buffer: Buffer, filename: string): void {
+    try {
+      const content = buffer.toString('utf-8');
+      const lines = content.split('\n').slice(0, 5); // 最初の5行のみ
+      
+      console.log(`CSVデバッグ情報 - ${filename}:`, {
+        totalLength: content.length,
+        lineCount: content.split('\n').length,
+        firstFiveLines: lines.map((line, index) => ({
+          lineNumber: index + 1,
+          content: line,
+          columnCount: line.split(',').length
+        }))
+      });
+    } catch (error) {
+      console.error(`CSVデバッグエラー - ${filename}:`, error);
+    }
+  }
+
   async parseCSVs(files: {
     basicRules: Buffer,
     humanPatterns: Buffer,
@@ -27,25 +46,25 @@ export class CSVParserAgent extends Agent {
     successExamples: Buffer
   }): Promise<CSVConfig> {
     try {
-      const basicRules = parse(files.basicRules, {
-        columns: true,
-        skip_empty_lines: true
-      });
+      // デバッグ情報出力
+      this.debugCSVStructure(files.basicRules, 'basic_rules.csv');
+      this.debugCSVStructure(files.humanPatterns, 'human_patterns.csv');
+      this.debugCSVStructure(files.qaKnowledge, 'qa_knowledge.csv');
+      this.debugCSVStructure(files.successExamples, 'success_examples.csv');
 
-      const humanPatterns = parse(files.humanPatterns, {
+      // より柔軟なCSVパースオプション
+      const parseOptions = {
         columns: true,
-        skip_empty_lines: true
-      });
+        skip_empty_lines: true,
+        relax_column_count: true, // 列数の不一致を許可
+        trim: true, // 前後の空白を削除
+        skip_records_with_error: false, // エラー行をスキップしない（デバッグのため）
+      };
 
-      const qaKnowledge = parse(files.qaKnowledge, {
-        columns: true,
-        skip_empty_lines: true
-      });
-
-      const successExamples = parse(files.successExamples, {
-        columns: true,
-        skip_empty_lines: true
-      });
+      const basicRules = parse(files.basicRules, parseOptions);
+      const humanPatterns = parse(files.humanPatterns, parseOptions);
+      const qaKnowledge = parse(files.qaKnowledge, parseOptions);
+      const successExamples = parse(files.successExamples, parseOptions);
 
       // Validate headers
       if (!this.validateHeaders(Object.keys(basicRules[0]), ['category', 'type', 'content'])) {
@@ -60,11 +79,24 @@ export class CSVParserAgent extends Agent {
       };
     } catch (error) {
       if (error instanceof Error) {
-        console.error('CSVParserAgent: エラー発生', error.message, error.stack);
+        console.error('CSVParserAgent: エラー発生', {
+          message: error.message,
+          stack: error.stack,
+          errorType: error.constructor.name
+        });
+        
+        // より詳細なエラーメッセージを作成
+        let detailedMessage = `CSVパースエラー: ${error.message}`;
+        
+        if (error.message.includes('Invalid Record Length')) {
+          detailedMessage += '\n\n解決方法:\n1. CSVファイルの列数を確認してください\n2. 余分なカンマや改行がないか確認してください\n3. 文字エンコーディングがUTF-8であることを確認してください';
+        }
+        
+        throw new Error(detailedMessage);
       } else {
         console.error('CSVParserAgent: 未知のエラー', error);
+        throw new Error(`CSVパースエラー: 未知のエラーが発生しました - ${String(error)}`);
       }
-      throw error;
     }
   }
 }
