@@ -207,11 +207,11 @@ function generateTestReview(pattern, csvConfig, index) {
   const positiveWord = style.positiveWords[Math.floor(Math.random() * style.positiveWords.length)];
   const expression = style.expressions[Math.floor(Math.random() * style.expressions.length)];
   
-  // 自然なレビューテンプレート
+  // 自然なレビューテンプレート（同伴者言及完全排除）
   const templates = [
     `${location}にある${storeName}に行ってきました${exclamation}アクセスも良く、料理も${positiveWord}くて${expression}。スタッフの方も親切で、また利用したいと思います。`,
     
-    `友人と${storeName}を利用しました${exclamation}${location}からすぐで便利ですね。料理のクオリティも高く、雰囲気も${positiveWord}感じでした。${expression}。`,
+    `${storeName}を利用しました${exclamation}${location}からすぐで便利ですね。料理のクオリティも高く、雰囲気も${positiveWord}感じでした。${expression}。`,
     
     `${storeName}での時間は${positiveWord}ものでした${exclamation}${location}エリアでは間違いなくおすすめのお店です。料理もドリンクも満足で、${expression}。`,
     
@@ -219,11 +219,11 @@ function generateTestReview(pattern, csvConfig, index) {
     
     `${storeName}は${positiveWord}エンタメバーですね${exclamation}${location}という立地も魅力的で、料理とドリンクのバランスも良く、${expression}。また訪れたいです。`,
     
-    `会社の同僚と${storeName}で食事をしました${exclamation}${location}からアクセスしやすく、料理も${positiveWord}くて会話も弾みました。${expression}。`,
+    `${storeName}で食事をしました${exclamation}${location}からアクセスしやすく、料理も${positiveWord}くて満足できました。${expression}。`,
     
     `${storeName}の雰囲気が${positiveWord}くて気に入りました${exclamation}${location}という便利な立地で、料理のレベルも高く、${expression}。リピート確定です。`,
     
-    `デートで${storeName}を利用しました${exclamation}${location}からすぐで、料理も美味しく、雰囲気も${positiveWord}感じ。${expression}。カップルにもおすすめです。`
+    `${storeName}を利用しました${exclamation}${location}からすぐで、料理も美味しく、雰囲気も${positiveWord}感じ。${expression}。おすすめできるお店です。`
   ];
   
   return templates[index % templates.length];
