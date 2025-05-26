@@ -68,8 +68,19 @@
   - バージョン固定: キャレット記号削除で確実性向上
   - ビルドテスト: 正常完了（SWC警告は無害）
 
+## 2025-01-26 (続き): Netlify autoprefixerエラー修正
+
+### 🔧 Netlify autoprefixerエラー対応
+- **問題**: Netlifyで`autoprefixer`モジュールが見つからない
+- **原因**: CSS関連パッケージがdevDependenciesにあるため
+- **解決策**: CSS関連パッケージを本番依存関係に移動
+- **修正内容**:
+  - `autoprefixer`, `postcss`, `tailwindcss`をdependenciesに移動
+  - ローカルビルドテスト: 正常完了
+  - CSS処理: 正常動作確認
+
 ### 📋 次のステップ
-1. Netlifyデプロイテスト（TypeScript本番依存版）
+1. Netlifyデプロイテスト（CSS本番依存版）
 2. Supabaseデータベーステーブル作成
 3. システム接続テスト実行（ブラウザ経由）
 4. 実際のレビュー生成テスト
