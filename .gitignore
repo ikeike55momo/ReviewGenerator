@@ -1,3 +1,6 @@
 node_modules/
 .cursor/
 .cursor/mcp.json .env 
+.env
+.env.*
+!.env.example
