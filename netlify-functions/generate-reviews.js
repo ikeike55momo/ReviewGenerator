@@ -1,7 +1,7 @@
 /**
  * @file generate-reviews.js
- * @description Netlify Functions用レビュー生成APIエンドポイント（テスト版）
- * Claude API依存関係なしで動作確認
+ * @description Netlify Functions用レビュー生成APIエンドポイント（Claude API連携版）
+ * CSV駆動型AI創作システム - 置換禁止、ペルソナ完全体現による自然な口コミ生成
  */
 
 // Netlify Functions用のエクスポート
@@ -33,16 +33,20 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    console.log('=== Netlify Function 開始 ===');
+    console.log('=== CSV駆動AI創作システム 開始 ===');
     
     // リクエストボディをパース
     const requestBody = JSON.parse(event.body || '{}');
-    const { csvConfig, reviewCount } = requestBody;
+    const { csvConfig, reviewCount, customPrompt } = requestBody;
 
     console.log('リクエスト受信:', { 
       csvConfigExists: !!csvConfig, 
       reviewCount,
-      humanPatternsCount: csvConfig?.humanPatterns?.length || 0
+      hasCustomPrompt: !!customPrompt,
+      humanPatternsCount: csvConfig?.humanPatterns?.length || 0,
+      basicRulesCount: csvConfig?.basicRules?.length || 0,
+      qaKnowledgeCount: csvConfig?.qaKnowledge?.length || 0,
+      successExamplesCount: csvConfig?.successExamples?.length || 0
     });
 
     // 入力バリデーション
@@ -72,28 +76,49 @@ exports.handler = async (event, context) => {
 
     // 環境変数チェック
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-    console.log('環境変数チェック:', { 
+    if (!anthropicApiKey) {
+      console.error('ANTHROPIC_API_KEY環境変数が設定されていません');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'ANTHROPIC_API_KEY環境変数が設定されていません',
+          details: 'Claude APIキーが必要です'
+        }),
+      };
+    }
+
+    console.log('環境変数チェック完了:', { 
       hasAnthropicKey: !!anthropicApiKey,
       keyLength: anthropicApiKey?.length || 0
     });
 
-    // テスト用レビュー生成（Claude API使用せず）
+    // Claude API用のHTTPクライアント設定
+    const https = require('https');
+    const { URL } = require('url');
+
+    // レビュー生成開始
     const generatedReviews = [];
     
-    console.log(`${reviewCount}件のテストレビュー生成開始`);
+    console.log(`${reviewCount}件のAI創作レビュー生成開始`);
     
-    for (let i = 0; i < Math.min(reviewCount, 10); i++) {
+    for (let i = 0; i < reviewCount; i++) {
       try {
-        // ランダムにパターンを選択
+        // ランダムにペルソナパターンを選択
         const randomPattern = csvConfig.humanPatterns[Math.floor(Math.random() * csvConfig.humanPatterns.length)];
         
-        console.log(`レビュー ${i + 1} 生成中 - パターン:`, {
+        console.log(`レビュー ${i + 1} 生成中 - ペルソナ:`, {
           age_group: randomPattern.age_group,
-          personality_type: randomPattern.personality_type
+          personality_type: randomPattern.personality_type,
+          vocabulary: randomPattern.vocabulary?.substring(0, 30) + '...',
+          exclamation_marks: randomPattern.exclamation_marks
         });
         
-        // テスト用レビューテキスト生成
-        const reviewText = generateTestReview(randomPattern, csvConfig, i + 1);
+        // CSV駆動動的プロンプト生成
+        const dynamicPrompt = buildDynamicPrompt(csvConfig, randomPattern, customPrompt);
+        
+        // Claude API呼び出し
+        const reviewText = await callClaudeAPI(dynamicPrompt, anthropicApiKey);
         
         // 品質スコア計算
         const qualityScore = calculateQualityScore(reviewText, csvConfig, randomPattern);
@@ -104,14 +129,34 @@ exports.handler = async (event, context) => {
           metadata: {
             age_group: randomPattern.age_group,
             personality_type: randomPattern.personality_type,
+            vocabulary: randomPattern.vocabulary,
+            exclamation_marks: randomPattern.exclamation_marks,
             generated_at: new Date().toISOString(),
-            test_mode: true
+            ai_generated: true,
+            prompt_length: dynamicPrompt.length
           }
         });
 
-        console.log(`レビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityScore})`);
+        console.log(`レビュー ${i + 1}/${reviewCount} AI創作完了 (スコア: ${qualityScore}, 文字数: ${reviewText.length})`);
+        
+        // API制限対策：少し待機
+        if (i < reviewCount - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
       } catch (error) {
-        console.error(`レビュー ${i + 1} 生成エラー:`, error);
+        console.error(`レビュー ${i + 1} AI創作エラー:`, error.message);
+        
+        // エラー時はスキップして次へ
+        generatedReviews.push({
+          text: `AI創作エラー: ${error.message}`,
+          score: 0,
+          metadata: {
+            error: true,
+            error_message: error.message,
+            generated_at: new Date().toISOString()
+          }
+        });
         continue;
       }
     }
@@ -119,8 +164,8 @@ exports.handler = async (event, context) => {
     // 品質フィルタリング（スコア6.0未満を除外）
     const filteredReviews = generatedReviews.filter(review => review.score >= 6.0);
 
-    console.log(`生成完了 - 総数: ${generatedReviews.length}, フィルタ後: ${filteredReviews.length}`);
-    console.log('=== Netlify Function 完了 ===');
+    console.log(`AI創作完了 - 総数: ${generatedReviews.length}, フィルタ後: ${filteredReviews.length}`);
+    console.log('=== CSV駆動AI創作システム 完了 ===');
 
     return {
       statusCode: 200,
@@ -129,14 +174,14 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    console.error('Netlify Function Error:', error);
+    console.error('CSV駆動AI創作システム Error:', error);
     console.error('Error Stack:', error.stack);
     
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: 'レビュー生成中に予期しないエラーが発生しました',
+        error: 'AI創作中に予期しないエラーが発生しました',
         details: error.message,
         stack: error.stack
       }),
@@ -145,188 +190,266 @@ exports.handler = async (event, context) => {
 };
 
 /**
- * 高品質レビュー生成関数
- * success_examples.csvの品質レベルを目指した自然なレビュー生成
+ * CSV駆動動的プロンプト生成関数
+ * 4つのCSVファイルの内容を基に、AIが自然な口コミを創作するためのプロンプトを構築
  */
-function generateTestReview(pattern, csvConfig, index) {
-  // 必須要素を取得
-  const requiredElements = csvConfig.basicRules
+function buildDynamicPrompt(csvConfig, selectedPattern, customPrompt) {
+  const { basicRules, humanPatterns, qaKnowledge, successExamples } = csvConfig;
+  
+  // 必須要素を抽出
+  const requiredElements = basicRules
     ?.filter(rule => rule.category === 'required_elements')
     ?.map(rule => rule.content) || [];
   
-  // 店舗名を必須要素から取得（デフォルト: SHOGUN BAR）
-  const storeName = requiredElements.find(elem => elem.includes('BAR') || elem.includes('SHOGUN')) || 'SHOGUN BAR';
-  const location = requiredElements.find(elem => elem.includes('池袋') || elem.includes('西口')) || '池袋西口';
+  // 禁止表現を抽出
+  const prohibitedExpressions = basicRules
+    ?.filter(rule => rule.category === 'prohibited_expressions')
+    ?.map(rule => rule.content) || [];
   
-  // 性格タイプ別のリアルな表現パターン
-  const personalityPatterns = {
-    'High型': {
-      problemExpressions: ['めちゃくちゃ混んでて入れるか心配だった', '期待してなかったけど', '正直不安だった'],
-      solutionWords: ['ビビりました', '感動しました', '最高でした', 'すごく良かった'],
-      exclamations: ['！', '！！'],
-      intensifiers: ['めちゃくちゃ', 'すごく', 'マジで'],
-      recommendations: ['推せます', 'おすすめです', '絶対行くべき']
-    },
-    '超High型': {
-      problemExpressions: ['ガチで期待してなかった', 'マジで不安だった', '正直ダメかと思った'],
-      solutionWords: ['神でした', 'ヤバすぎ', '最強', 'やばい'],
-      exclamations: ['！！', '！！！'],
-      intensifiers: ['ガチで', 'マジで', 'めっちゃ', '超'],
-      recommendations: ['神すぎる', 'マジでおすすめ', '絶対行って']
-    },
-    'Medium型': {
-      problemExpressions: ['少し心配でしたが', '期待半分不安半分でしたが', '初めてで緊張しましたが'],
-      solutionWords: ['満足できました', '良かったです', '感動しました', '安心しました'],
-      exclamations: ['。', '！'],
-      intensifiers: ['とても', 'かなり', 'すごく'],
-      recommendations: ['おすすめします', 'おすすめです', '良いと思います']
-    },
-    'Low型': {
-      problemExpressions: ['少し不安でしたが', '心配でしたが', '緊張しましたが'],
-      solutionWords: ['安心しました', '良かったです', '満足です', '落ち着けました'],
-      exclamations: ['。', '。'],
-      intensifiers: ['とても', '結構', 'なかなか'],
-      recommendations: ['おすすめです', '良いと思います', '安心できます']
-    },
-    'Formal型': {
-      problemExpressions: ['多少の不安がありましたが', '初回で緊張いたしましたが', '期待と不安がありましたが'],
-      solutionWords: ['満足いたしました', '感銘を受けました', '素晴らしかったです', '上質でした'],
-      exclamations: ['。', '。'],
-      intensifiers: ['非常に', '大変', 'とても'],
-      recommendations: ['おすすめいたします', 'お勧めできます', '推奨いたします']
-    }
-  };
+  // 推奨フレーズを抽出
+  const recommendationPhrases = basicRules
+    ?.filter(rule => rule.category === 'recommendation_phrases')
+    ?.map(rule => rule.content) || [];
   
-  // 店舗固有の特徴（SHOGUN BAR想定）
-  const storeFeatures = [
-    '個室風の空間で落ち着いて過ごせる',
-    'ドリンクサービスがあって居心地が良い',
-    '清潔感のある店内',
-    'スタッフの方が親切で丁寧',
-    'リクライニングチェアでリラックスできる',
-    '衛生管理がしっかりしている',
-    'メイクルームもあって便利'
-  ];
+  // 品質管理ルールを抽出（Critical優先度）
+  const criticalQAKnowledge = qaKnowledge
+    ?.filter(qa => qa.priority === 'Critical')
+    ?.slice(0, 5) || []; // 上位5件
   
-  // 体験シナリオパターン
-  const experienceScenarios = [
-    {
-      problem: '仕事のストレスで疲れていて',
-      solution: 'リラックスできて気分転換になった',
-      result: 'また疲れた時に利用したい'
-    },
-    {
-      problem: '初めての利用で緊張していたけど',
-      solution: 'スタッフの方が優しくて安心できた',
-      result: '次回も安心して利用できそう'
-    },
-    {
-      problem: '時間がなくて急いでいたけど',
-      solution: 'スムーズに対応してもらえた',
-      result: '忙しい時でも利用しやすい'
-    },
-    {
-      problem: '他の店で嫌な思いをしたことがあって不安だったけど',
-      solution: 'ここは全然違って素晴らしかった',
-      result: 'もうここ以外は考えられない'
-    },
-    {
-      problem: '料金が心配だったけど',
-      solution: 'サービス内容を考えると納得の価格',
-      result: 'コスパが良いと思う'
-    }
-  ];
-  
-  const personalityType = pattern.personality_type || 'Medium型';
-  const style = personalityPatterns[personalityType] || personalityPatterns['Medium型'];
-  
-  // ランダム要素選択
-  const problemExpr = style.problemExpressions[Math.floor(Math.random() * style.problemExpressions.length)];
-  const solutionWord = style.solutionWords[Math.floor(Math.random() * style.solutionWords.length)];
-  const exclamation = style.exclamations[Math.floor(Math.random() * style.exclamations.length)];
-  const intensifier = style.intensifiers[Math.floor(Math.random() * style.intensifiers.length)];
-  const recommendation = style.recommendations[Math.floor(Math.random() * style.recommendations.length)];
-  const feature = storeFeatures[Math.floor(Math.random() * storeFeatures.length)];
-  const scenario = experienceScenarios[Math.floor(Math.random() * experienceScenarios.length)];
-  
-  // success_examples.csv品質のレビューテンプレート
-  const templates = [
-    `${location}の${storeName}に行ってきました${exclamation}${scenario.problem}、${intensifier}${solutionWord}${exclamation}${feature}のも良かったです。${scenario.result}し、同じような方に${recommendation}${exclamation}`,
-    
-    `${storeName}で${scenario.problem}、${problemExpr}実際に利用してみたら${intensifier}${solutionWord}${exclamation}${feature}し、${scenario.result}と思います。${recommendation}${exclamation}`,
-    
-    `${location}にある${storeName}を利用しました${exclamation}${scenario.problem}、スタッフの方が${intensifier}親切で${solutionWord}${exclamation}${feature}のも魅力的です。${recommendation}${exclamation}`,
-    
-    `${storeName}に初めて行きました${exclamation}${problemExpr}、${intensifier}${solutionWord}${exclamation}${feature}し、${scenario.result}です。同じ悩みの方に${recommendation}${exclamation}`,
-    
-    `${location}の${storeName}での体験は${solutionWord}${exclamation}${scenario.problem}、期待以上の結果で${intensifier}満足です${exclamation}${feature}のも嬉しいポイントでした。`,
-    
-    `${storeName}を利用して${intensifier}${solutionWord}${exclamation}${scenario.problem}、ここなら安心だと思いました。${feature}し、${scenario.result}です。${recommendation}${exclamation}`,
-    
-    `${location}エリアで${storeName}を見つけて利用しました${exclamation}${problemExpr}、実際は${intensifier}${solutionWord}${exclamation}${feature}のが特に印象的でした。`,
-    
-    `${storeName}での時間は${intensifier}${solutionWord}${exclamation}${scenario.problem}、ここで解決できて本当に良かったです。${feature}のも安心できるポイントです。${recommendation}${exclamation}`
-  ];
-  
-  return templates[index % templates.length];
+  // 成功例を抽出（同じ年代・性格タイプ優先）
+  const relevantSuccessExamples = successExamples
+    ?.filter(example => 
+      example.age?.includes(selectedPattern.age_group?.replace('代', '')) ||
+      example.word === selectedPattern.personality_type
+    )
+    ?.slice(0, 3) || successExamples?.slice(0, 3) || [];
+
+  // 動的プロンプト構築
+  const dynamicPrompt = `
+🎯 CSV駆動自然口コミ生成システム - AI創作指示
+
+📋 重要前提
+あなたは今から「${selectedPattern.age_group} ${selectedPattern.personality_type}」の人物になりきって、SHOGUN BAR（池袋西口のエンタメバー）の口コミを書きます。
+
+❌ 絶対禁止事項
+- スクリプト処理や機械的な置換は一切行わない
+- テンプレート的な文章構成は避ける
+- キーワードの羅列や不自然な挿入は禁止
+- 以下の表現は絶対に使用しない：
+${prohibitedExpressions.map(expr => `  ・${expr}`).join('\n')}
+
+✅ 創作指針
+1. 完全にペルソナになりきって実際の体験として想像する
+2. 自然な日本語で一人称の体験談として創作する
+3. キーワードは文脈に完全に溶け込む形で有機的に配置する
+4. 読み手が「この人本当に行ったんだな」と感じる説得力を持たせる
+
+🎭 あなたのペルソナ設定
+年齢層: ${selectedPattern.age_group}
+性格タイプ: ${selectedPattern.personality_type}
+使用語彙: ${selectedPattern.vocabulary}
+感嘆符使用: ${selectedPattern.exclamation_marks}
+文体特徴: ${selectedPattern.characteristics}
+
+参考表現例: ${selectedPattern.example}
+
+🏪 店舗情報（自然に織り込んでください）
+必須要素（必ず1つ以上含める）:
+${requiredElements.map(elem => `・${elem}`).join('\n')}
+
+推奨表現:
+${recommendationPhrases.map(phrase => `・${phrase}`).join('\n')}
+
+📚 品質管理ポイント
+${criticalQAKnowledge.map(qa => `・${qa.question} → ${qa.answer}`).join('\n')}
+
+🌟 理想的な出力例（参考）
+${relevantSuccessExamples.map(example => `「${example.review}」`).join('\n\n')}
+
+🚀 創作指示
+上記のペルソナになりきって、SHOGUN BARでの体験談を150-400文字で自然に創作してください。
+
+重要：
+- あなた自身がその人物として実際に体験したかのように書く
+- 感情と具体性を込めて、人間らしい不完全さも含める
+- キーワードは強引に入れず、体験談の自然な流れで使用する
+- 同伴者への言及は完全に避け、個人的な体験のみ記述する
+
+${customPrompt ? `\n追加指示:\n${customPrompt}` : ''}
+`;
+
+  return dynamicPrompt;
+}
+
+/**
+ * Claude API呼び出し関数
+ * HTTPSリクエストでClaude APIを呼び出し、自然な口コミを生成
+ */
+async function callClaudeAPI(prompt, apiKey) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1000,
+      temperature: 0.8,
+      messages: [
+        {
+          role: 'user',
+          content: prompt
+        }
+      ]
+    });
+
+    const options = {
+      hostname: 'api.anthropic.com',
+      port: 443,
+      path: '/v1/messages',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+          
+          if (res.statusCode !== 200) {
+            console.error('Claude API Error Response:', response);
+            reject(new Error(`Claude API Error: ${response.error?.message || 'Unknown error'}`));
+            return;
+          }
+
+          if (response.content && response.content[0] && response.content[0].text) {
+            const generatedText = response.content[0].text.trim();
+            console.log('Claude API Success:', { 
+              textLength: generatedText.length,
+              preview: generatedText.substring(0, 50) + '...'
+            });
+            resolve(generatedText);
+          } else {
+            console.error('Unexpected Claude API Response Structure:', response);
+            reject(new Error('Claude APIからの応答形式が予期しないものでした'));
+          }
+        } catch (parseError) {
+          console.error('Claude API Response Parse Error:', parseError);
+          console.error('Raw Response:', data);
+          reject(new Error(`Claude API応答のパースに失敗しました: ${parseError.message}`));
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('Claude API Request Error:', error);
+      reject(new Error(`Claude APIリクエストエラー: ${error.message}`));
+    });
+
+    req.on('timeout', () => {
+      console.error('Claude API Request Timeout');
+      reject(new Error('Claude APIリクエストがタイムアウトしました'));
+    });
+
+    // タイムアウト設定（30秒）
+    req.setTimeout(30000);
+
+    req.write(postData);
+    req.end();
+  });
 }
 
 /**
  * 品質スコア計算関数
+ * CSV設定に基づいてレビューの品質を評価
  */
 function calculateQualityScore(reviewText, csvConfig, pattern) {
   let score = 10.0;
-  const details = [];
-  
-  // 文字数チェック（80-400字に調整）
-  if (reviewText.length < 80) {
-    score -= 3.0;
-    details.push(`文字数不足: ${reviewText.length}字`);
-  } else if (reviewText.length < 120) {
-    score -= 1.0;
-    details.push(`文字数やや不足: ${reviewText.length}字`);
-  } else if (reviewText.length > 400) {
-    score -= 1.5;
-    details.push(`文字数過多: ${reviewText.length}字`);
+  const { basicRules, qaKnowledge } = csvConfig;
+
+  // 文字数チェック（150-400文字が理想）
+  const textLength = reviewText.length;
+  if (textLength < 80) {
+    score -= 3.0; // 短すぎる
+  } else if (textLength < 150) {
+    score -= 1.0; // やや短い
+  } else if (textLength > 500) {
+    score -= 2.0; // 長すぎる
+  } else if (textLength > 400) {
+    score -= 0.5; // やや長い
   }
-  
-  // 禁止表現チェック
-  const prohibitedExpressions = csvConfig.basicRules
-    ?.filter(rule => rule.category === 'prohibited_expressions')
-    ?.map(rule => rule.content) || [];
-    
-  for (const expr of prohibitedExpressions) {
-    if (reviewText.includes(expr)) {
-      score -= 3.0;
-      details.push(`禁止表現検出: ${expr}`);
-    }
-  }
-  
+
   // 必須要素チェック
-  const requiredElements = csvConfig.basicRules
+  const requiredElements = basicRules
     ?.filter(rule => rule.category === 'required_elements')
     ?.map(rule => rule.content) || [];
-    
-  let requiredCount = 0;
-  for (const elem of requiredElements) {
-    if (reviewText.includes(elem)) {
-      requiredCount++;
+
+  let requiredElementsFound = 0;
+  for (const element of requiredElements) {
+    if (reviewText.includes(element)) {
+      requiredElementsFound++;
     }
   }
   
-  if (requiredElements.length > 0 && requiredCount === 0) {
-    score -= 4.0;
-    details.push('必須要素なし');
-  } else if (requiredElements.length > 0 && requiredCount < requiredElements.length / 2) {
-    score -= 2.0;
-    details.push(`必須要素不足: ${requiredCount}/${requiredElements.length}`);
+  if (requiredElementsFound === 0) {
+    score -= 3.0; // 必須要素が全くない
+  } else if (requiredElementsFound < requiredElements.length * 0.3) {
+    score -= 1.5; // 必須要素が少ない
   }
-  
-  const finalScore = Math.max(0, Math.min(10, score));
-  
-  if (details.length > 0) {
-    console.log(`品質スコア詳細 (${finalScore.toFixed(1)}): ${details.join(', ')}`);
+
+  // 禁止表現チェック
+  const prohibitedExpressions = basicRules
+    ?.filter(rule => rule.category === 'prohibited_expressions')
+    ?.map(rule => rule.content) || [];
+
+  for (const expression of prohibitedExpressions) {
+    if (reviewText.includes(expression)) {
+      score -= 2.0; // 禁止表現使用は重大な減点
+    }
   }
+
+  // 感嘆符使用チェック
+  const exclamationCount = (reviewText.match(/！/g) || []).length;
+  const expectedRange = pattern.exclamation_marks || '0-1個';
   
-  return finalScore;
+  if (expectedRange.includes('3-5') && (exclamationCount < 3 || exclamationCount > 5)) {
+    score -= 0.5;
+  } else if (expectedRange.includes('2-3') && (exclamationCount < 2 || exclamationCount > 3)) {
+    score -= 0.5;
+  } else if (expectedRange.includes('0-1') && exclamationCount > 1) {
+    score -= 0.5;
+  }
+
+  // QA知識による品質チェック
+  const criticalRules = qaKnowledge
+    ?.filter(qa => qa.priority === 'Critical') || [];
+
+  for (const rule of criticalRules) {
+    if (rule.example_before && reviewText.includes(rule.example_before)) {
+      score -= 1.5; // 改善前の表現が含まれている
+    }
+  }
+
+  // 自然さチェック（簡易版）
+  const unnaturalPatterns = [
+    /(.)\1{3,}/, // 同じ文字の4回以上連続
+    /[。！]{3,}/, // 句読点の3回以上連続
+    /です。です。/, // 同じ語尾の連続
+    /ます。ます。/, // 同じ語尾の連続
+  ];
+
+  for (const pattern of unnaturalPatterns) {
+    if (pattern.test(reviewText)) {
+      score -= 0.5;
+    }
+  }
+
+  return Math.max(0, Math.min(10, score));
 } 

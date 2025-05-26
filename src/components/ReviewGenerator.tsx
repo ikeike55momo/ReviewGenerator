@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 
 interface ReviewGeneratorProps {
-  onGenerate: (reviewCount: number) => void;
+  onGenerate: (reviewCount: number, customPrompt?: string) => void;
   isGenerating: boolean;
 }
 
@@ -91,7 +91,7 @@ OK例：「楽しめました」「体験できました」「満足できる内
    */
   const handleGenerate = () => {
     if (isGenerating) return;
-    onGenerate(reviewCount);
+    onGenerate(reviewCount, customPrompt);
   };
 
   return (

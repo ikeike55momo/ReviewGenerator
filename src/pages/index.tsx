@@ -63,8 +63,9 @@ export default function HomePage() {
   /**
    * レビュー生成開始時のハンドラー
    * @param reviewCount 生成件数
+   * @param customPrompt カスタムプロンプト（オプション）
    */
-  const handleGenerateReviews = async (reviewCount: number) => {
+  const handleGenerateReviews = async (reviewCount: number, customPrompt?: string) => {
     if (!csvConfig) {
       alert('CSVファイルをアップロードしてください');
       return;
@@ -82,6 +83,7 @@ export default function HomePage() {
         body: JSON.stringify({
           csvConfig,
           reviewCount,
+          customPrompt,
         }),
       });
 
