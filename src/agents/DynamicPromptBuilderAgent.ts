@@ -28,11 +28,10 @@ export class DynamicPromptBuilderAgent extends Agent {
     // Get personality pattern
     const pattern = humanPatterns.find(p =>
       p.personality_type === request.personality_type &&
-      p.age_group === request.age_group &&
-      p.gender === request.gender
+      p.age_group === request.age_group
     );
     if (!pattern) {
-      throw new Error(`personalityPatternPrompt: 指定条件に合致するパターンが見つかりません。personalityType=${request.personality_type}, ageGroup=${request.age_group}, gender=${request.gender}`);
+      throw new Error(`personalityPatternPrompt: 指定条件に合致するパターンが見つかりません。personalityType=${request.personality_type}, ageGroup=${request.age_group}`);
     }
 
     const prompt = `
@@ -49,10 +48,7 @@ ${requiredElements.map(elem => `- ${elem}`).join('\n')}
 使用可能な語彙:
 ${pattern.vocabulary}
 
-感嘆符使用回数: ${pattern.exclamation_marks}
-
-文体の特徴:
-${pattern.characteristics}
+感嘆符使用回数: ${pattern.excl}
 
 禁止表現:
 ${basicRules
@@ -60,8 +56,7 @@ ${basicRules
   .map(rule => `- ${rule.content}`)
   .join('\n')}
 
-以下の例を参考に、自然な日本語で書いてください：
-${pattern.example}
+自然な日本語で書いてください。
 
 `;
 

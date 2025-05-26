@@ -14,11 +14,8 @@ export interface BasicRule {
 export interface HumanPattern {
   age_group: string;
   personality_type: string;
-  gender: string;
   vocabulary: string;
-  exclamation_marks: string;
-  characteristics: string;
-  example: string;
+  excl: string;
 }
 
 export interface QAKnowledge {

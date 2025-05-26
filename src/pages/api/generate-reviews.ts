@@ -55,7 +55,7 @@ function generateReviewRequests(csvConfig: CSVConfig, reviewCount: number): Revi
     
     requests.push({
       age_group: randomPattern.age_group,
-      gender: randomPattern.gender,
+      gender: 'male', // デフォルト値（CSVにgenderがないため固定値）
       companion: '友人', // デフォルト値（CSVから動的に選択する場合は拡張）
       personality_type: randomPattern.personality_type,
     });
