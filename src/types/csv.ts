@@ -15,7 +15,9 @@ export interface HumanPattern {
   age_group: string;
   personality_type: string;
   vocabulary: string;
-  excl: string;
+  exclamation_marks: string;
+  characteristics: string;
+  example: string;
 }
 
 export interface QAKnowledge {

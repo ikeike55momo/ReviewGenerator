@@ -48,7 +48,10 @@ ${requiredElements.map(elem => `- ${elem}`).join('\n')}
 使用可能な語彙:
 ${pattern.vocabulary}
 
-感嘆符使用回数: ${pattern.excl}
+感嘆符使用回数: ${pattern.exclamation_marks}
+
+文体の特徴:
+${pattern.characteristics}
 
 禁止表現:
 ${basicRules
@@ -56,7 +59,8 @@ ${basicRules
   .map(rule => `- ${rule.content}`)
   .join('\n')}
 
-自然な日本語で書いてください。
+以下の例を参考に、自然な日本語で書いてください：
+${pattern.example}
 
 `;
 
