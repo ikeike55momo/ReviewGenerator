@@ -16,6 +16,8 @@ export default function HomePage() {
   const [csvConfig, setCsvConfig] = useState<CSVConfig | null>(null);
   const [generatedReviews, setGeneratedReviews] = useState<GeneratedReview[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<any>(null);
+  const [isTestingSystem, setIsTestingSystem] = useState(false);
 
   /**
    * CSVアップロード完了時のハンドラー
@@ -24,6 +26,38 @@ export default function HomePage() {
   const handleCsvUploadComplete = (config: CSVConfig) => {
     setCsvConfig(config);
     console.log('CSVアップロード完了:', config);
+  };
+
+  /**
+   * システム接続テストのハンドラー
+   */
+  const handleSystemTest = async () => {
+    setIsTestingSystem(true);
+    setSystemStatus(null);
+
+    try {
+      const response = await fetch('/api/test-connection');
+      
+      if (!response.ok) {
+        throw new Error(`テストAPIエラー: ${response.status} ${response.statusText}`);
+      }
+
+      const testResult = await response.json();
+      setSystemStatus(testResult);
+    } catch (error) {
+      console.error('システムテストエラー:', error);
+      setSystemStatus({
+        overall: 'error',
+        timestamp: new Date().toISOString(),
+        results: [{
+          component: 'System Test',
+          status: 'error',
+          message: error instanceof Error ? error.message : '不明なエラー',
+        }],
+      });
+    } finally {
+      setIsTestingSystem(false);
+    }
   };
 
   /**
@@ -82,7 +116,76 @@ export default function HomePage() {
             <p className="text-gray-600">
               4つのCSVファイルをアップロードして、高品質な日本語レビューを自動生成
             </p>
+            
+            {/* システムテストボタン */}
+            <div className="mt-4">
+              <button
+                onClick={handleSystemTest}
+                disabled={isTestingSystem}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  isTestingSystem
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {isTestingSystem ? 'システムテスト中...' : 'システム接続テスト'}
+              </button>
+            </div>
           </header>
+
+          {/* システムテスト結果 */}
+          {systemStatus && (
+            <section className="mb-8">
+              <div className={`border rounded-lg p-4 ${
+                systemStatus.overall === 'success' ? 'border-green-300 bg-green-50' :
+                systemStatus.overall === 'warning' ? 'border-yellow-300 bg-yellow-50' :
+                'border-red-300 bg-red-50'
+              }`}>
+                <div className="flex items-center mb-3">
+                  <div className={`w-3 h-3 rounded-full mr-2 ${
+                    systemStatus.overall === 'success' ? 'bg-green-500' :
+                    systemStatus.overall === 'warning' ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}></div>
+                  <h3 className="text-lg font-medium">
+                    システムステータス: {
+                      systemStatus.overall === 'success' ? '正常' :
+                      systemStatus.overall === 'warning' ? '警告あり' :
+                      'エラー'
+                    }
+                  </h3>
+                </div>
+                
+                <div className="space-y-2">
+                  {systemStatus.results.map((result: any, index: number) => (
+                    <div key={index} className="flex items-start">
+                      <div className={`w-2 h-2 rounded-full mt-2 mr-3 flex-shrink-0 ${
+                        result.status === 'success' ? 'bg-green-500' :
+                        result.status === 'warning' ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}></div>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{result.component}</div>
+                        <div className="text-sm text-gray-600">{result.message}</div>
+                        {result.details && (
+                          <details className="mt-1">
+                            <summary className="text-xs text-gray-500 cursor-pointer">詳細を表示</summary>
+                            <pre className="text-xs bg-gray-100 p-2 mt-1 rounded overflow-auto">
+                              {JSON.stringify(result.details, null, 2)}
+                            </pre>
+                          </details>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-500">
+                  テスト実行時刻: {new Date(systemStatus.timestamp).toLocaleString('ja-JP')}
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* CSVアップロードセクション */}
           <section className="mb-8">

@@ -1,148 +1,239 @@
-# 🤖 CSV駆動口コミ生成エージェント
+# CSV駆動型レビュー生成エージェント
 
-4つのCSVファイルを投入するだけで、その店舗・業種に特化した自然で人間らしい口コミを自動生成するエージェントシステム。
+4つのCSVファイルから高品質な日本語レビューを自動生成するWebアプリケーション
 
-## ✨ 特徴
+## 🚀 概要
 
-- **Zero-Code Configuration**: CSVファイルの更新のみで新規店舗対応
-- **AI判定回避**: 人間らしい自然な文章生成（平均品質スコア8.0+）
-- **年代・性別対応**: リアルな世代差・性差の表現を自動生成
-- **Claude Code × GitHub Actions**: 要件変更時の自動開発フロー
+このプロジェクトは、CSV形式のデータを活用してAIが自然で説得力のある日本語レビューを生成するシステムです。Mastraエージェントフレームワークを使用し、Claude APIによる高品質なテキスト生成を実現しています。
 
-## 🏗️ 技術スタック
+### 主な機能
 
-- **エージェント**: Mastra Framework
-- **AI**: Claude Sonnet 4 API
-- **フロントエンド**: Next.js + TypeScript
-- **データベース**: Supabase
-- **デプロイ**: Netlify
-- **自動開発**: GitHub Actions + Claude Code API
+- **4種類のCSVファイル対応**
+  - `basic_rules.csv`: 基本ルール・ガイドライン
+  - `human_patterns.csv`: 人間らしい表現パターン
+  - `qa_knowledge.csv`: Q&A知識ベース
+  - `success_examples.csv`: 成功事例・参考例
 
-## 🚀 クイックスタート
+- **高品質レビュー生成**
+  - 1-100件の一括生成
+  - 年齢・性別分布の調整
+  - 品質スコアによる自動フィルタリング
+  - カスタムプロンプト対応
 
-### 1. セットアップ
-```bash
-git clone https://github.com/ikeike55momo/ReviewGenerator.git
-cd ReviewGenerator
-npm install
-```
+- **直感的なWebUI**
+  - ドラッグ&ドロップでCSVアップロード
+  - リアルタイムプレビュー・バリデーション
+  - 生成結果の一覧表示・フィルタリング
+  - CSVダウンロード機能
 
-### 2. 環境変数設定
-```bash
-cp .env.example .env
-# .env ファイルにAPI キーを設定
-```
+## 🛠 技術スタック
 
-### 3. サンプル実行（SHOGUN BAR例）
-```bash
-npm run dev
-```
+### フロントエンド
+- **Next.js 14** - React フレームワーク
+- **TypeScript** - 型安全な開発
+- **Tailwind CSS** - モダンなスタイリング
+- **React Dropzone** - ファイルアップロード
 
-## 📊 CSV設定例（SHOGUN BAR）
+### バックエンド
+- **Mastra** - エージェントフレームワーク
+- **Claude API (Anthropic)** - AI テキスト生成
+- **Supabase** - データベース・認証
+- **Netlify Functions** - サーバーレス API
 
-### keywords.csv
-```csv
-category,keyword,priority,usage_rule,example
-area,池袋,必須,1回以上使用,池袋で本格的な日本酒を
-business,SHOGUN BAR,必須,1回使用,SHOGUN BARで一人飲み
-usp,抹茶カクテル,高,1回以上推奨,抹茶カクテルが絶品で
-```
-
-### patterns.csv
-```csv
-age_group,gender,tone,vocabulary,example_phrases
-20s,female,high,"めちゃくちゃ,マジで,ヤバい","テンション上がる！,映える"
-30s,male,medium,"とても,かなり,想像以上","満足できました,印象的"
-```
-
-## 🤖 Claude Code 自動開発
-
-このプロジェクトは **Claude Code × GitHub Actions** による自動開発に対応：
-
-- `requirements/` 更新 → 自動でエージェント実装更新
-- `sample-csv/` 変更 → 自動でロジック調整
-- GitHub Actions で Phase 1-4 の段階的開発
-
-### 手動トリガー
-1. GitHub Actions タブを開く
-2. "Claude Code Auto Development" を実行
-3. Phase選択（1-4）で段階的開発
+### 開発・デプロイ
+- **Netlify** - ホスティング・CI/CD
+- **GitHub** - バージョン管理
+- **ESLint + TypeScript** - コード品質
 
 ## 📁 プロジェクト構造
 
 ```
-ReviewGenerator/
-├── requirements/          # 詳細要件定義
-├── sample-csv/           # サンプル設定（SHOGUN BAR例）
+csv-reviewgenerator/
 ├── src/
-│   ├── agents/          # Mastraエージェント
-│   ├── types/           # TypeScript型定義
-│   └── components/      # React コンポーネント
-├── .github/workflows/   # 自動開発ワークフロー
-└── README.md
+│   ├── agents/                 # Mastraエージェント
+│   │   ├── CSVParserAgent.ts
+│   │   ├── DynamicPromptBuilderAgent.ts
+│   │   ├── ReviewGeneratorAgent.ts
+│   │   └── QualityControllerAgent.ts
+│   ├── components/             # Reactコンポーネント
+│   │   ├── CSVUploader.tsx
+│   │   ├── ReviewGenerator.tsx
+│   │   └── ReviewList.tsx
+│   ├── pages/                  # Next.jsページ
+│   │   ├── api/               # APIエンドポイント
+│   │   ├── _app.tsx
+│   │   └── index.tsx
+│   ├── types/                  # TypeScript型定義
+│   ├── utils/                  # ユーティリティ
+│   ├── config/                 # 設定ファイル
+│   └── styles/                 # スタイル
+├── sample-csv/                 # サンプルCSVファイル
+├── scripts/                    # セットアップスクリプト
+├── netlify.toml               # Netlify設定
+├── next.config.js             # Next.js設定
+└── package.json
 ```
 
-## 🎯 使用方法
+## 🚀 セットアップ・実行
 
-### 基本フロー
-1. **CSV準備**: 4つのCSVファイルを準備
-   - `keywords.csv`: キーワード設定
-   - `patterns.csv`: 年代別文体パターン  
-   - `examples.csv`: 成功例テンプレート
-   - `quality_rules.csv`: 品質チェックルール
+### 1. 環境準備
 
-2. **生成実行**: Webインターフェースでアップロード・実行
-
-3. **結果取得**: 自然な口コミをCSV形式でダウンロード
-
-### 新規店舗対応
-1. 既存のサンプルCSVをコピー
-2. 店舗情報に合わせて内容を変更
-3. システムにアップロード → 即座に対応完了
-
-## 📈 品質保証
-
-- **品質スコア**: 平均8.0点以上
-- **AI判定回避率**: 95%以上
-- **必須要素充足率**: 100%
-- **自然さ**: 年代・性別に応じた適切な文体
-
-## 🔧 開発・拡張
-
-### ローカル開発
 ```bash
-npm run dev        # 開発サーバー起動
-npm run build      # プロダクションビルド
-npm run agents     # エージェント単体テスト
+# リポジトリクローン
+git clone https://github.com/ikeike55momo/ReviewGenerator.git
+cd csv-reviewgenerator
+
+# 依存関係インストール
+npm install
 ```
 
-### 要件変更時の自動開発
-1. `requirements/` フォルダ内のマークダウンを更新
-2. GitHub にプッシュ
-3. Claude Code API が自動で実装を更新
+### 2. 環境変数設定
 
-## 📚 詳細ドキュメント
+`.env.local` ファイルを作成：
 
-- [詳細要件定義](./requirements/) - 完全な仕様書
-- [実装計画](./requirements/implementation_plan.md) - 開発ロードマップ
-- [技術仕様](./requirements/tech_stack_document.md) - 技術詳細
+```env
+# Supabase設定
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-## 🤝 コントリビューション
+# Claude API設定
+ANTHROPIC_API_KEY=your-claude-api-key
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+# 開発環境設定
+NODE_ENV=development
+```
 
-## 📄 ライセンス
+### 3. データベースセットアップ
+
+Supabaseダッシュボードで `src/config/database.sql` を実行：
+
+```bash
+# または、セットアップスクリプト実行
+node scripts/setup-database.js
+```
+
+### 4. 開発サーバー起動
+
+```bash
+npm run dev
+```
+
+http://localhost:3000 でアプリケーションにアクセス
+
+### 5. システムテスト
+
+Webアプリの「システム接続テスト」ボタンで各コンポーネントの動作確認
+
+## 📊 CSVファイル形式
+
+### basic_rules.csv
+```csv
+category,type,content
+商品評価,ポジティブ,商品の品質が期待以上でした
+商品評価,ネガティブ,期待していたほどではありませんでした
+```
+
+### human_patterns.csv
+```csv
+age_group,gender,personality_type,vocabulary_level,expression_style
+20-30,female,enthusiastic,casual,感情豊か
+40-50,male,analytical,formal,論理的
+```
+
+### qa_knowledge.csv
+```csv
+question,answer,category
+配送はどのくらいかかりますか,通常2-3日で配送されます,配送
+返品は可能ですか,30日以内であれば返品可能です,返品
+```
+
+### success_examples.csv
+```csv
+rating,review_text,reviewer_profile
+5,とても満足しています。品質も良く、配送も早かったです。,30代女性
+4,概ね満足ですが、もう少し安ければ良かったです。,40代男性
+```
+
+## 🔧 開発・デプロイ
+
+### 型チェック
+```bash
+npm run type-check
+```
+
+### ビルド
+```bash
+npm run build
+```
+
+### Netlifyデプロイ
+```bash
+# 自動デプロイ（GitHubプッシュ時）
+git push origin main
+
+# 手動デプロイ
+npm run netlify-build
+```
+
+## 📈 パフォーマンス要件
+
+- **レビュー生成**: 20件/2分以内
+- **CSV処理**: 5秒以内
+- **UI応答**: 0.5秒以内
+- **品質スコア**: 6.0/10以上で自動承認
+
+## 🔒 セキュリティ
+
+- 環境変数による機密情報管理
+- Supabase Row Level Security (RLS)
+- CORS設定によるAPI保護
+- CSVファイルのバリデーション
+
+## 🐛 トラブルシューティング
+
+### よくある問題
+
+1. **環境変数エラー**
+   - `.env.local` ファイルの設定確認
+   - Netlify環境変数の設定確認
+
+2. **データベース接続エラー**
+   - Supabase URLとキーの確認
+   - データベーステーブルの作成確認
+
+3. **Claude API エラー**
+   - APIキーの有効性確認
+   - レート制限の確認
+
+### デバッグ方法
+
+```bash
+# システム接続テスト
+curl http://localhost:3000/api/test-connection
+
+# ログ確認
+npm run dev # 開発サーバーのログ確認
+```
+
+## 📝 ライセンス
 
 MIT License
 
-## 🙋‍♂️ サポート
+## 🤝 コントリビューション
 
-質問や問題がある場合は、[Issues](https://github.com/ikeike55momo/ReviewGenerator/issues) を作成してください。
+1. フォークしてブランチ作成
+2. 機能追加・バグ修正
+3. テスト実行
+4. プルリクエスト作成
+
+## 📞 サポート
+
+- GitHub Issues: バグ報告・機能要望
+- Email: support@example.com
 
 ---
 
-**「CSVを4つ投げるだけで、その店舗の自然な口コミが生成される」** - それがこのシステムの本質です。
+**開発者**: ikeike55momo  
+**最終更新**: 2024年1月  
+**バージョン**: 1.0.0

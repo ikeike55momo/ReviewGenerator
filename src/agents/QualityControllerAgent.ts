@@ -1,12 +1,11 @@
 /**
  * @file QualityControllerAgent
- * @description レビュー品質管理エージェント。mastraの型定義エラーを回避。
+ * @description レビュー品質管理エージェント。独立したクラスとして実装。
  */
-import { Agent } from 'mastra';
 import { CSVConfig } from '../types/csv';
 import { GeneratedReview } from '../types/review';
 
-export class QualityControllerAgent extends Agent {
+export class QualityControllerAgent {
   checkQuality(review: GeneratedReview, config: CSVConfig): GeneratedReview {
     let score = 10.0;
     const { basicRules, qaKnowledge } = config;

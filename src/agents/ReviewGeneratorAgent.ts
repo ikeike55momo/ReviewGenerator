@@ -1,4 +1,3 @@
-import { Agent } from 'mastra';
 import Anthropic from '@anthropic-ai/sdk';
 import { ReviewRequest, GeneratedReview } from '../types/review';
 
@@ -7,11 +6,10 @@ import { ReviewRequest, GeneratedReview } from '../types/review';
  * @description レビュー生成エージェント。Anthropic Claude APIの呼び出しとエラーハンドリングを含む。
  */
 
-export class ReviewGeneratorAgent extends Agent {
+export class ReviewGeneratorAgent {
   private claude: Anthropic;
 
   constructor(apiKey: string) {
-    super();
     this.claude = new Anthropic({ apiKey });
   }
 

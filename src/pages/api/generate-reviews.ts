@@ -1,7 +1,7 @@
 /**
  * @file generate-reviews.ts
  * @description レビュー生成APIエンドポイント（Netlify Functions互換）
- * 主な機能：CSVConfig受け取り、エージェント連携、レビュー生成・品質チェック・結果返却
+ * 主な機能：CSVConfig受け取り、エージェント連携、レビュー生成・品質チェック・結果返却、データベース保存
  * 制限事項：環境変数からAPIキー取得、エラーハンドリング、型安全
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
@@ -11,13 +11,32 @@ import { ReviewGeneratorAgent } from '../../agents/ReviewGeneratorAgent';
 import { QualityControllerAgent } from '../../agents/QualityControllerAgent';
 import { CSVConfig } from '../../types/csv';
 import { ReviewRequest, GeneratedReview } from '../../types/review';
+import { 
+  createGenerationBatch, 
+  updateBatchStatus, 
+  saveGeneratedReview, 
+  logQualityCheck,
+  ReviewGenerationParams,
+  GeneratedReview as DBGeneratedReview
+} from '../../utils/database';
 
 interface GenerateReviewsRequest {
   csvConfig: CSVConfig;
   reviewCount: number;
   customPrompt?: string;
-  ageDistribution?: string;
-  genderDistribution?: string;
+  ageDistribution?: {
+    min: number;
+    max: number;
+  };
+  genderDistribution?: {
+    male: number;
+    female: number;
+    other: number;
+  };
+  ratingDistribution?: {
+    [key: number]: number;
+  };
+  csvFileIds?: string[];
 }
 
 /**
@@ -60,7 +79,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = req.body;
+    const { 
+      csvConfig, 
+      reviewCount, 
+      customPrompt, 
+      ageDistribution, 
+      genderDistribution, 
+      ratingDistribution,
+      csvFileIds 
+    }: GenerateReviewsRequest = req.body;
 
     // 入力バリデーション
     if (!csvConfig || !reviewCount) {
@@ -77,6 +104,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    // 生成パラメータの準備
+    const generationParams: ReviewGenerationParams = {
+      count: reviewCount,
+      ageDistribution: ageDistribution || { min: 20, max: 60 },
+      genderDistribution: genderDistribution || { male: 50, female: 45, other: 5 },
+      ratingDistribution: ratingDistribution || { 1: 5, 2: 10, 3: 20, 4: 35, 5: 30 },
+      customPrompt,
+    };
+
     // 環境変数チェック
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
     if (!anthropicApiKey) {
@@ -85,6 +121,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         error: 'サーバー設定エラー: APIキーが設定されていません' 
       });
     }
+
+    // データベースに生成バッチを作成
+    const batchId = await createGenerationBatch(
+      generationParams,
+      csvFileIds || [],
+      `Review_Batch_${new Date().toISOString()}`
+    );
+
+    // バッチステータスを処理中に更新
+    await updateBatchStatus(batchId, 'processing');
 
     // エージェント初期化
     const csvParserAgent = new CSVParserAgent();
@@ -95,35 +141,89 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // レビューリクエスト生成
     const reviewRequests = generateReviewRequests(csvConfig, reviewCount);
     const generatedReviews: GeneratedReview[] = [];
+    const dbGeneratedReviews: DBGeneratedReview[] = [];
 
-    console.log(`generate-reviews API: ${reviewCount}件のレビュー生成を開始`);
+    console.log(`generate-reviews API: ${reviewCount}件のレビュー生成を開始 (バッチID: ${batchId})`);
 
     // 各レビューを順次生成（並列処理は将来の拡張で対応）
     for (let i = 0; i < reviewRequests.length; i++) {
       const request = reviewRequests[i];
+      let generatedPrompt = '';
 
       try {
         // プロンプト生成
-        const prompt = customPrompt || promptBuilderAgent.buildPrompt(csvConfig, request);
+        generatedPrompt = customPrompt || promptBuilderAgent.buildPrompt(csvConfig, request);
 
         // レビュー生成
-        const rawReview = await reviewGeneratorAgent.generateReview(prompt, request);
+        const rawReview = await reviewGeneratorAgent.generateReview(generatedPrompt, request);
 
         // 品質チェック
         const qualityCheckedReview = qualityControllerAgent.checkQuality(rawReview, csvConfig);
 
         generatedReviews.push(qualityCheckedReview);
 
-        console.log(`generate-reviews API: レビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityCheckedReview.score})`);
+        // データベースに保存
+        const dbReview: DBGeneratedReview = {
+          reviewText: qualityCheckedReview.text,
+          rating: Math.floor(Math.random() * 5) + 1, // 実際の評価は要件に応じて調整
+          reviewerAge: typeof request.age_group === 'string' ? 
+            parseInt(request.age_group.split('-')[0]) || 30 : 30,
+          reviewerGender: request.gender === 'male' ? 'male' : 
+                         request.gender === 'female' ? 'female' : 'other',
+          qualityScore: qualityCheckedReview.score / 10, // 10点満点を1点満点に変換
+          generationPrompt: generatedPrompt,
+          generationParameters: generationParams,
+          csvFileIds: csvFileIds || [],
+          generationBatchId: batchId,
+        };
+
+        const reviewId = await saveGeneratedReview(dbReview);
+        dbGeneratedReviews.push({ ...dbReview, id: reviewId });
+
+        // 品質ログを記録
+        await logQualityCheck(
+          reviewId,
+          'automatic_quality_check',
+          qualityCheckedReview.score,
+          qualityCheckedReview.score >= 6.0,
+          { 
+            originalScore: qualityCheckedReview.score,
+            checkDetails: 'Automatic quality assessment by QualityControllerAgent'
+          }
+        );
+
+        console.log(`generate-reviews API: レビュー ${i + 1}/${reviewCount} 生成完了 (スコア: ${qualityCheckedReview.score}, ID: ${reviewId})`);
       } catch (error) {
         console.error(`generate-reviews API: レビュー ${i + 1} 生成エラー`, error);
         
         // エラー時はダミーレビューを生成（品質スコア0）
-        generatedReviews.push({
+        const errorReview = {
           text: `レビュー生成エラーが発生しました: ${error instanceof Error ? error.message : '不明なエラー'}`,
           score: 0,
           metadata: request,
-        });
+        };
+        
+        generatedReviews.push(errorReview);
+
+        // エラーレビューもデータベースに保存
+        try {
+          const dbErrorReview: DBGeneratedReview = {
+            reviewText: errorReview.text,
+            rating: 1,
+            reviewerAge: 30,
+            reviewerGender: 'other',
+            qualityScore: 0,
+            generationPrompt: generatedPrompt || 'Error occurred during generation',
+            generationParameters: generationParams,
+            csvFileIds: csvFileIds || [],
+            generationBatchId: batchId,
+          };
+
+          const errorReviewId = await saveGeneratedReview(dbErrorReview);
+          dbGeneratedReviews.push({ ...dbErrorReview, id: errorReviewId });
+        } catch (dbError) {
+          console.error('データベース保存エラー:', dbError);
+        }
       }
     }
 

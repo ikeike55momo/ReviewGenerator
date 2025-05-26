@@ -1,4 +1,3 @@
-import { Agent } from 'mastra';
 import { CSVConfig } from '../types/csv';
 import { ReviewRequest } from '../types/review';
 
@@ -7,7 +6,7 @@ import { ReviewRequest } from '../types/review';
  * @description プロンプト生成エージェント。ReviewRequestからpersonalityType, ageGroup, genderを取得し、型安全にhumanPatternsを検索する。
  */
 
-export class DynamicPromptBuilderAgent extends Agent {
+export class DynamicPromptBuilderAgent {
   buildPrompt(config: CSVConfig, request: ReviewRequest): string {
     const { basicRules, humanPatterns, qaKnowledge } = config;
 

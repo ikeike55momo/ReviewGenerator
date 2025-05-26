@@ -5,11 +5,21 @@
   publish = ".next"
   functions = "netlify-functions"
 
+[build.environment]
+  NODE_VERSION = "18"
+
 [dev]
   command = "npm run dev"
-  port = 8888
+  port = 3000
 
+# Next.js API Routes を Netlify Functions にリダイレクト
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/:splat"
+  status = 200
+
+# SPA用のフォールバック（Next.jsの動的ルーティング対応）
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200 

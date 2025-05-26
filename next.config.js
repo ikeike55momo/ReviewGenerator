@@ -31,7 +31,8 @@ const nextConfig = {
     unoptimized: true,
   },
 
-  // 出力設定（静的エクスポート用）
+  // 出力設定（Netlify対応）
+  // output: 'export', // 一時的に無効化（API Routes使用のため）
   trailingSlash: true,
   
   // Webpack設定のカスタマイズ

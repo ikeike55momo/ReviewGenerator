@@ -1,12 +1,11 @@
 /**
  * @file CSVParserAgent
- * @description CSVパースエージェント。mastraの型定義エラーを回避。
+ * @description CSVパースエージェント。独立したクラスとして実装。
  */
 import { parse } from 'csv-parse/sync';
 import { CSVConfig } from '../types/csv';
-import { Agent } from 'mastra';
 
-export class CSVParserAgent extends Agent {
+export class CSVParserAgent {
   private validateHeaders(headers: string[], expectedHeaders: string[]): boolean {
     return expectedHeaders.every(h => headers.includes(h));
   }
