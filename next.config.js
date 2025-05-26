@@ -37,12 +37,25 @@ const nextConfig = {
   
   // Webpack設定のカスタマイズ
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // CSV-parseライブラリの最適化
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      fs: false,
-      path: false,
-    };
+    // Node.js polyfills for browser
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        buffer: require.resolve('buffer'),
+        crypto: require.resolve('crypto-browserify'),
+        stream: require.resolve('stream-browserify'),
+        util: require.resolve('util'),
+      };
+      
+      config.plugins.push(
+        new webpack.ProvidePlugin({
+          Buffer: ['buffer', 'Buffer'],
+          process: 'process/browser',
+        })
+      );
+    }
 
     return config;
   },

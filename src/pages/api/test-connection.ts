@@ -126,7 +126,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const qualityControllerAgent = new QualityControllerAgent();
 
     results.push({
-      component: 'Mastra Agents',
+      component: 'CSV Review Agents',
       status: 'success',
       message: 'All agents initialized successfully',
       details: {
@@ -137,7 +137,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     });
   } catch (error) {
     results.push({
-      component: 'Mastra Agents',
+      component: 'CSV Review Agents',
       status: 'error',
       message: 'Failed to initialize agents',
       details: error instanceof Error ? error.message : 'Unknown error',
