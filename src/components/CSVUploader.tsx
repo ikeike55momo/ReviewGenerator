@@ -28,7 +28,7 @@ const CSV_TYPES = {
   humanPatterns: {
     label: 'Human Patterns CSV',
     description: '年齢層、性格タイプ、性別、語彙パターン',
-    expectedHeaders: ['personality_type', 'age_group', 'gender', 'vocabulary', 'exclamation_marks', 'characteristics', 'example'],
+    expectedHeaders: ['personality_type', 'age_group', 'vocabulary', 'exclamation_marks', 'characteristics', 'example'],
   },
   qaKnowledge: {
     label: 'QA Knowledge CSV',
