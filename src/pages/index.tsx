@@ -26,9 +26,17 @@ export default function HomePage() {
    * CSVアップロード完了時のハンドラー
    * @param config パース済みCSV設定
    */
-  const handleCsvUploadComplete = (config: CSVConfig) => {
+  const handleCSVUpload = (config: CSVConfig) => {
+    console.log('📁 CSV設定受信:', {
+      basicRulesCount: config.basicRules?.length || 0,
+      humanPatternsCount: config.humanPatterns?.length || 0,
+      qaKnowledgeCount: config.qaKnowledge?.length || 0,
+      successExamplesCount: config.successExamples?.length || 0,
+      configKeys: Object.keys(config)
+    });
+    
     setCsvConfig(config);
-    console.log('CSVアップロード完了:', config);
+    console.log('✅ CSVConfig状態更新完了');
   };
 
   /**
@@ -71,9 +79,22 @@ export default function HomePage() {
   const handleGenerateReviews = async (reviewCount: number, customPrompt?: string) => {
     console.log('🚀 handleGenerateReviews 開始:', { reviewCount, customPrompt: !!customPrompt, csvConfig: !!csvConfig });
     
+    // 詳細デバッグ情報を追加
+    console.log('🔍 詳細デバッグ情報:', {
+      csvConfigExists: !!csvConfig,
+      csvConfigKeys: csvConfig ? Object.keys(csvConfig) : [],
+      basicRulesCount: csvConfig?.basicRules?.length || 0,
+      humanPatternsCount: csvConfig?.humanPatterns?.length || 0,
+      qaKnowledgeCount: csvConfig?.qaKnowledge?.length || 0,
+      successExamplesCount: csvConfig?.successExamples?.length || 0,
+      reviewCount,
+      customPromptLength: customPrompt?.length || 0,
+      isGenerating
+    });
+    
     if (!csvConfig) {
       console.error('❌ CSVConfigが未設定');
-      alert('CSVファイルをアップロードしてください');
+      alert('CSVファイルをアップロードしてください。\n\n手順:\n1. ページ上部のCSVアップロード領域を確認\n2. 必要なCSVファイルをアップロード\n3. 「読み込み完了」メッセージを確認\n4. 再度生成ボタンを押してください');
       return;
     }
 
@@ -129,7 +150,7 @@ export default function HomePage() {
     } catch (error) {
       console.error('❌ レビュー生成エラー:', error);
       console.error('エラースタック:', error instanceof Error ? error.stack : 'スタック情報なし');
-      alert(`レビュー生成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}`);
+      alert(`レビュー生成に失敗しました: ${error instanceof Error ? error.message : '不明なエラー'}\n\n詳細はブラウザのコンソール（F12）を確認してください。`);
     } finally {
       console.log('🏁 handleGenerateReviews 終了');
       setIsGenerating(false);
@@ -290,7 +311,7 @@ export default function HomePage() {
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">
                   1. CSVファイルアップロード
                 </h2>
-                <CSVUploader onUploadComplete={handleCsvUploadComplete} />
+                <CSVUploader onUploadComplete={handleCSVUpload} />
               </section>
 
               {/* レビュー生成セクション */}
@@ -323,7 +344,7 @@ export default function HomePage() {
                 <h2 className="text-xl font-semibold text-gray-800 mb-4">
                   1. CSVファイルアップロード
                 </h2>
-                <CSVUploader onUploadComplete={handleCsvUploadComplete} />
+                <CSVUploader onUploadComplete={handleCSVUpload} />
               </section>
 
               {/* バッチ管理セクション */}
