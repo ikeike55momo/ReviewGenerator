@@ -436,6 +436,57 @@ OK例：「楽しめました」「体験できました」「満足できる内
             >
               🔍 デバッグ版テスト（詳細ログ）
             </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🧠 知的化レビュー生成テスト開始');
+                  const testCsvConfig = {
+                    humanPatterns: [
+                      { age_group: '30代', personality_type: 'カジュアル' },
+                      { age_group: '20代', personality_type: 'フレンドリー' },
+                      { age_group: '40代', personality_type: '丁寧' }
+                    ],
+                    basicRules: [
+                      { category: 'required_elements', type: 'area', content: '池袋西口' },
+                      { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                      { category: 'required_elements', type: 'usp', content: '日本酒' },
+                      { category: 'required_elements', type: 'environment', content: 'アクセス抜群' },
+                      { category: 'recommendation_phrases', content: '日本酒好きに' }
+                    ]
+                  };
+                  
+                  const response = await fetch('/api/generate-reviews-intelligent', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      csvConfig: testCsvConfig,
+                      reviewCount: 5
+                    }),
+                  });
+                  
+                  const result = await response.json();
+                  console.log('🧠 知的化テスト結果:', result);
+                  
+                  if (result.success) {
+                    const summary = result.reviews.map((review: any, index: number) => 
+                      `${index + 1}. "${review.reviewText.substring(0, 40)}..." (品質: ${review.qualityScore.toFixed(2)})`
+                    ).join('\n');
+                    alert(`✅ 知的化レビュー生成成功！\n\n生成数: ${result.count}件\n平均品質: ${result.qualityAnalysis?.average || 'N/A'}\n\n${summary}\n\n🧠 知的化機能:\n✓ 多様性向上\n✓ 品質監視\n✓ 戦略調整\n✓ 知的スコアリング`);
+                  } else {
+                    alert(`❌ 知的化レビュー生成失敗: ${result.error || 'Unknown error'}`);
+                  }
+                } catch (error) {
+                  console.error('🧠 知的化テストエラー:', error);
+                  alert(`❌ 知的化テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+              className="px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 mt-2 w-full"
+            >
+              🧠 知的化テスト（Phase 1機能）
+            </button>
           </div>
           
           <p className="text-xs text-yellow-700 mt-2">
@@ -444,7 +495,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
             最小限テスト: CSV設定を使った1件レビュー生成確認<br/>
             超軽量版テスト: 最適化版ベースの1件生成確認<br/>
             シンプル版テスト: 重複チェックなしの5件生成確認<br/>
-            🔍 デバッグ版テスト: 詳細ログ付き1件生成（エラー原因特定用）
+            🔍 デバッグ版テスト: 詳細ログ付き1件生成（エラー原因特定用）<br/>
+            🧠 知的化テスト: Phase 1知的化機能（多様性・品質監視・戦略調整）
           </p>
         </div>
 

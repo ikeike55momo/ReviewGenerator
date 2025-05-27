@@ -32,6 +32,203 @@ interface BatchGenerateRequest {
   batchName?: string;
 }
 
+// ========================================
+// 🧠 知的化機能（Phase 1）
+// ========================================
+
+/**
+ * 知的プロンプト生成関数
+ * 既存レビューを分析して多様性を向上させる
+ */
+function enhancePromptWithIntelligence(
+  basePrompt: string, 
+  existingReviews: GeneratedReview[], 
+  currentIndex: number
+): string {
+  console.log(`🧠 知的レビュー生成開始 - ${currentIndex + 1}件目`);
+  
+  const diversityBoost = calculateDiversityBoost(existingReviews);
+  const intelligencePrompt = `
+
+# 🧠 知的化指示
+${diversityBoost}
+
+## 多様性強化ルール
+- 既存の${existingReviews.length}件のレビューとは異なる表現を使用
+- 同じ語彙の繰り返しを避ける
+- 異なる体験談の角度から記述
+- 感情表現のバリエーションを増やす
+`;
+
+  return basePrompt + intelligencePrompt;
+}
+
+/**
+ * 多様性向上のための指示生成
+ */
+function calculateDiversityBoost(existingReviews: GeneratedReview[]): string {
+  if (existingReviews.length === 0) {
+    return "初回生成：自然で魅力的なレビューを作成してください。";
+  }
+  
+  // 既存レビューから使用済みキーワードを抽出
+  const usedKeywords = existingReviews
+    .map(review => review.reviewText)
+    .join(' ')
+    .match(/[ぁ-んァ-ヶー一-龠]+/g) || [];
+  
+  const keywordFreq = usedKeywords.reduce((acc, word) => {
+    if (word.length > 1) {
+      acc[word] = (acc[word] || 0) + 1;
+    }
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const overusedWords = Object.entries(keywordFreq)
+    .filter(([word, count]) => count >= 2)
+    .map(([word]) => word);
+  
+  if (overusedWords.length > 0) {
+    return `多様性向上：「${overusedWords.slice(0, 5).join('、')}」などの表現は避けて、新しい語彙で表現してください。`;
+  }
+  
+  return "多様性向上：これまでとは異なる表現や体験談の角度で記述してください。";
+}
+
+/**
+ * リアルタイム品質監視
+ */
+function analyzeRecentQuality(recentReviews: GeneratedReview[]): {
+  average: number;
+  trend: string;
+  recommendation: string;
+} {
+  if (recentReviews.length === 0) {
+    return { average: 0, trend: 'unknown', recommendation: 'データ不足' };
+  }
+  
+  const scores = recentReviews.map(r => r.qualityScore || 0);
+  const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  
+  let trend = 'stable';
+  let recommendation = '品質良好';
+  
+  if (scores.length >= 3) {
+    const recent = scores.slice(-2).reduce((sum, score) => sum + score, 0) / 2;
+    const earlier = scores.slice(0, -2).reduce((sum, score) => sum + score, 0) / (scores.length - 2);
+    
+    if (recent > earlier + 0.1) {
+      trend = 'improving';
+      recommendation = '品質向上中';
+    } else if (recent < earlier - 0.1) {
+      trend = 'declining';
+      recommendation = '品質注意';
+    }
+  }
+  
+  return { average: Math.round(average * 100) / 100, trend, recommendation };
+}
+
+/**
+ * 動的戦略調整
+ */
+function adjustStrategy(recentReviews: GeneratedReview[]): string {
+  if (recentReviews.length < 3) return 'balanced';
+  
+  const qualityAnalysis = analyzeRecentQuality(recentReviews);
+  
+  if (qualityAnalysis.average < 0.6) {
+    console.log('🔄 戦略変更: quality_focus（品質重視）');
+    return 'quality_focus';
+  } else if (qualityAnalysis.average > 0.8) {
+    console.log('🔄 戦略変更: diversity_focus（多様性重視）');
+    return 'diversity_focus';
+  }
+  
+  return 'balanced';
+}
+
+/**
+ * 知的品質スコアリング
+ */
+function calculateIntelligentQualityScore(
+  reviewText: string,
+  csvConfig: CSVConfig,
+  existingReviews: GeneratedReview[],
+  pattern: any,
+  selectedElements: {
+    area: string;
+    businessType: string;
+    usps: string[];
+    environment: string;
+    subs: string[];
+  }
+): number {
+  // 基本品質スコア（既存の関数を使用）
+  const basicScore = calculateQualityScore(reviewText, csvConfig, pattern, selectedElements);
+  
+  // 多様性スコア
+  const diversityScore = calculateDiversityScore(reviewText, existingReviews);
+  
+  // 自然さスコア
+  const naturalScore = calculateNaturalScore(reviewText);
+  
+  // 重み付け合計
+  const finalScore = (
+    basicScore * 0.4 +
+    diversityScore * 0.3 +
+    naturalScore * 0.3
+  );
+  
+  return Math.min(1.0, Math.max(0.0, finalScore));
+}
+
+/**
+ * 多様性スコア計算
+ */
+function calculateDiversityScore(reviewText: string, existingReviews: GeneratedReview[]): number {
+  if (existingReviews.length === 0) return 1.0;
+  
+  const currentWords = reviewText.match(/[ぁ-んァ-ヶー一-龠]+/g) || [];
+  const existingWords = existingReviews
+    .map(r => r.reviewText)
+    .join(' ')
+    .match(/[ぁ-んァ-ヶー一-龠]+/g) || [];
+  
+  const uniqueWords = currentWords.filter(word => 
+    word.length > 1 && !existingWords.includes(word)
+  );
+  
+  return Math.min(1.0, uniqueWords.length / Math.max(1, currentWords.length));
+}
+
+/**
+ * 自然さスコア計算
+ */
+function calculateNaturalScore(reviewText: string): number {
+  let score = 1.0;
+  
+  // 不自然な表現をチェック
+  const unnaturalPatterns = [
+    /(.{1,3})\1{3,}/g, // 同じ文字の繰り返し
+    /[！]{3,}/g,      // 感嘆符の過度な使用
+    /[。]{2,}/g,      // 句点の連続
+  ];
+  
+  unnaturalPatterns.forEach(pattern => {
+    if (pattern.test(reviewText)) {
+      score -= 0.2;
+    }
+  });
+  
+  // 適切な長さかチェック
+  if (reviewText.length < 50 || reviewText.length > 500) {
+    score -= 0.1;
+  }
+  
+  return Math.max(0.0, score);
+}
+
 /**
  * CSV駆動動的プロンプト生成関数
  * 4つのCSVファイルの内容を基に、AIが自然な口コミを創作するためのプロンプトを構築
@@ -941,6 +1138,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // CSV駆動動的プロンプト生成（ランダム性を高めるため毎回生成）
           const promptResult = buildDynamicPrompt(csvConfig, randomPattern, customPrompt);
           
+          // 🧠 知的化機能：プロンプトを強化
+          const enhancedPrompt = enhancePromptWithIntelligence(
+            promptResult.dynamicPrompt, 
+            generatedReviews, 
+            i
+          );
+          
+          // 🔄 動的戦略調整（5件ごと）
+          let currentStrategy = 'balanced';
+          if (i % 5 === 0 && i > 0) {
+            currentStrategy = adjustStrategy(generatedReviews.slice(-5));
+          }
+          
+          // 📊 リアルタイム品質監視（5件ごと）
+          if (i % 5 === 0 && i > 0) {
+            const recentQuality = analyzeRecentQuality(generatedReviews.slice(-5));
+            console.log(`📊 直近品質分析 (${i}件目):`, {
+              average: recentQuality.average,
+              trend: recentQuality.trend,
+              recommendation: recentQuality.recommendation,
+              strategy: currentStrategy
+            });
+          }
+          
           // 使用可能ワードの完全リスト表示（デバッグ用）
           const availableWords = {
             areas: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [],
@@ -984,10 +1205,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             availableBusinessTypes: currentBusinessTypes,
             availableEnvironments: currentEnvironments
           });
-          const { dynamicPrompt } = promptResult;
-          
-          // Claude API呼び出し（クリーンなプロンプトで）
-          reviewText = await callClaudeAPI(dynamicPrompt, anthropicApiKey);
+          // Claude API呼び出し（知的化されたプロンプトで）
+          reviewText = await callClaudeAPI(enhancedPrompt, anthropicApiKey);
           
           // 厳格なワード制限チェック（Claudeアプリ準拠）
           const wordViolationResult = checkStrictWordCompliance(reviewText, csvConfig, {
@@ -1058,7 +1277,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           continue; // このレビューをスキップ
         }
         
-        // 品質スコア計算
+        // 🧠 知的品質スコア計算
         const selectedElements = {
           area: finalPromptResult.selectedArea,
           businessType: finalPromptResult.selectedBusinessType,
@@ -1066,7 +1285,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           environment: finalPromptResult.selectedEnvironment,
           subs: finalPromptResult.selectedSubs
         };
-        const qualityScore = calculateQualityScore(reviewText, csvConfig, finalRandomPattern, selectedElements);
+        
+        // 知的品質スコアリングを使用
+        const qualityScore = calculateIntelligentQualityScore(
+          reviewText, 
+          csvConfig, 
+          generatedReviews, 
+          finalRandomPattern, 
+          selectedElements
+        );
+        
+        console.log(`🧠 知的品質スコア (レビュー ${i + 1}):`, {
+          score: qualityScore,
+          length: reviewText.length,
+          diversity: calculateDiversityScore(reviewText, generatedReviews),
+          natural: calculateNaturalScore(reviewText)
+        });
         
         // 年齢・性別を設定（正規化関数を使用）
         const ageGroup = finalRandomPattern.age_group || '20代';
