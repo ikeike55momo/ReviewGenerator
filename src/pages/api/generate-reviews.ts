@@ -12,7 +12,7 @@ import {
   saveGeneratedReview,
   logQualityCheck 
 } from '../../utils/database';
-import https from 'https';
+// import https from 'https'; // Netlify Functionsでは使用しない
 
 interface GenerateReviewsRequest {
   csvConfig: CSVConfig;
@@ -20,6 +20,8 @@ interface GenerateReviewsRequest {
   customPrompt?: string;
   batchName?: string;
   saveToDB?: boolean;
+  existingTexts?: string[]; // バッチ間重複防止用
+  existingWordCombinations?: string[]; // ワード組み合わせ重複防止用
 }
 
 interface BatchGenerateRequest {
@@ -68,52 +70,64 @@ function buildDynamicPrompt(csvConfig: CSVConfig, selectedPattern: any, customPr
                         targetLength <= 250 ? 'コンパクトに' : 
                         targetLength <= 300 ? '適度な詳しさで' : '詳細に';
   
-  // 必須要素をカテゴリ別に抽出
+  // 必須要素をカテゴリ別に抽出（安定化されたロジック）
   const requiredAreas = basicRules
     ?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')
-    ?.map(rule => rule.content) || [];
-  const selectedArea = requiredAreas[Math.floor(Math.random() * requiredAreas.length)] || '池袋西口';
+    ?.map(rule => rule.content) || ['池袋西口'];
+  const selectedArea = requiredAreas[Math.floor(Math.random() * requiredAreas.length)];
   
   const businessTypes = basicRules
     ?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')
-    ?.map(rule => rule.content) || [];
-  const selectedBusinessType = businessTypes[Math.floor(Math.random() * businessTypes.length)] || 'SHOGUN BAR';
+    ?.map(rule => rule.content) || ['SHOGUN BAR'];
+  const selectedBusinessType = businessTypes[Math.floor(Math.random() * businessTypes.length)];
   
-  const uspElements = basicRules
+  // USP要素から禁止されているものを除外
+  const allUSPElements = basicRules
     ?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')
     ?.map(rule => rule.content) || [];
+  
+  // qa_knowledge.csvで禁止されているUSPを除外
+  const prohibitedUSPs = ['侍のコスプレ体験', '将軍', '清酒']; // qa_knowledge.csvから抽出
+  const validUSPElements = allUSPElements.filter(usp => !prohibitedUSPs.includes(usp));
+  
   // USPから文字数に応じて1-3個を選択
   const uspCount = targetLength <= 200 ? 1 : targetLength <= 300 ? 2 : 3;
-  const selectedUSPs = uspElements.sort(() => 0.5 - Math.random()).slice(0, Math.min(uspCount, uspElements.length));
+  const shuffledUSPs = [...validUSPElements].sort(() => Math.random() - 0.5);
+  const selectedUSPs = shuffledUSPs.slice(0, Math.min(uspCount, validUSPElements.length));
   
   const environmentElements = basicRules
     ?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')
-    ?.map(rule => rule.content) || [];
-  // 環境要素から1個をランダム選択（必須）
+    ?.map(rule => rule.content) || ['アクセス抜群'];
   const selectedEnvironment = environmentElements[Math.floor(Math.random() * environmentElements.length)];
   
-  // サブ要素（自由使用）
-  const subElements = basicRules
+  // サブ要素（自由使用）- 禁止要素を除外
+  const allSubElements = basicRules
     ?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')
     ?.map(rule => rule.content) || [];
-  // サブ要素から0-2個をランダム選択（自然さ重視）
-  const selectedSubs = subElements.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3));
+  
+  // qa_knowledge.csvで禁止されているサブ要素を除外
+  const prohibitedSubs = ['将軍', '清酒']; // qa_knowledge.csvから抽出
+  const validSubElements = allSubElements.filter(sub => !prohibitedSubs.includes(sub));
+  
+  const subCount = Math.floor(Math.random() * 3); // 0-2個
+  const shuffledSubs = [...validSubElements].sort(() => Math.random() - 0.5);
+  const selectedSubs = shuffledSubs.slice(0, Math.min(subCount, validSubElements.length));
   
   // 禁止表現を抽出
   const prohibitedExpressions = basicRules
     ?.filter(rule => rule.category === 'prohibited_expressions')
     ?.map(rule => rule.content) || [];
   
-  // 推奨フレーズを抽出（レコメンド用）
+  // 推奨フレーズを抽出（レコメンド用）- 安定化されたロジック
   const recommendationPhrases = basicRules
     ?.filter(rule => rule.category === 'recommendation_phrases')
-    ?.map(rule => rule.content) || [];
-  const selectedRecommendation = recommendationPhrases[Math.floor(Math.random() * recommendationPhrases.length)] || '日本酒好きに';
+    ?.map(rule => rule.content) || ['日本酒好きに'];
+  const selectedRecommendation = recommendationPhrases[Math.floor(Math.random() * recommendationPhrases.length)];
   
-  // 品質管理ルールを抽出（Critical優先度）
-  const criticalQAKnowledge = qaKnowledge
-    ?.filter(qa => qa.priority === 'Critical')
-    ?.slice(0, 5) || []; // 上位5件
+  // QA知識ベースを抽出（AI制御用）
+  const controlQAKnowledge = qaKnowledge
+    ?.filter(qa => qa.priority === 'Critical' || qa.priority === 'High')
+    ?.slice(0, 8) || []; // 重要度の高いQA知識を抽出
   
   // 成功例を抽出（同じ年代・性格タイプ優先）
   const relevantSuccessExamples = successExamples
@@ -123,90 +137,95 @@ function buildDynamicPrompt(csvConfig: CSVConfig, selectedPattern: any, customPr
     )
     ?.slice(0, 3) || successExamples?.slice(0, 3) || [];
 
-  // 動的プロンプト構築
+  // 使用可能ワードの完全リスト化（Claudeアプリ風）
+  const availableAreas = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [];
+  const availableBusinessTypes = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [];
+  const availableUSPs = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')?.map(rule => rule.content) || [];
+  const availableEnvironments = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [];
+  const availableSubs = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')?.map(rule => rule.content) || [];
+  const availableRecommendations = basicRules?.filter(rule => rule.category === 'recommendation_phrases')?.map(rule => rule.content) || [];
+
+  // Claudeアプリ完全準拠プロンプト
   const dynamicPrompt = `
-🎯 CSV駆動自然口コミ生成システム - AI創作指示
+# Google口コミ生成プロフェッショナル
 
-📋 重要前提
-あなたは今から「${selectedPattern.age_group} ${selectedPattern.personality_type}」の人物になりきって、${selectedBusinessType}（池袋西口）の口コミを書きます。
+あなたはGoogle口コミ生成のプロフェッショナルです。特にAI判定されない、人間が書いたような自然な口コミを生成することに長けています。
 
-❌ 絶対禁止事項
-- スクリプト処理や機械的な置換は一切行わない
-- テンプレート的な文章構成は避ける
-- キーワードの羅列や不自然な挿入は禁止
-- 絵文字は一切使用しない（😊🎉✨等の絵文字は完全禁止）
-- 以下の表現は絶対に使用しない：
-${prohibitedExpressions.map(expr => `  ・${expr}`).join('\n')}
+## 必須要素の使用ルール（厳格遵守）
 
-✅ 創作指針
-1. 完全にペルソナになりきって実際の体験として想像する
-2. 自然な日本語で一人称の体験談として創作する
-3. キーワードは文脈に完全に溶け込む形で有機的に配置する
-4. 読み手が「この人本当に行ったんだな」と感じる説得力を持たせる
+### 1. area（エリア）
+- **使用数**: 1個のみ必須
+- **選択肢**: ${availableAreas.join('、')}
+- **配置**: 文頭付近で自然に
+- **選択されたエリア**: ${selectedArea}
 
-🎭 あなたのペルソナ設定
-年齢層: ${selectedPattern.age_group}
-性格タイプ: ${selectedPattern.personality_type}
-使用語彙: ${selectedPattern.vocabulary}
-感嘆符使用: ${selectedPattern.exclamation_marks}
-文体特徴: ${selectedPattern.characteristics}
+### 2. business_type（業種）
+- **使用数**: 1個のみ必須
+- **選択肢**: ${availableBusinessTypes.join('、')}
+- **配置**: areaと組み合わせて自然に
+- **選択された業種**: ${selectedBusinessType}
 
-参考表現例: ${selectedPattern.example}
+### 3. usp（独自サービス）
+- **使用数**: 何個でも可（自然さ優先）
+- **選択肢**: ${availableUSPs.join('、')}
+- **配置**: 体験談として自然に組み込む
+- **選択されたUSP**: ${selectedUSPs.join('、')}
 
-🏪 店舗情報（厳密に従ってください）
-【必須要素 - 必ず全て含める】
-・エリア: ${selectedArea} （必ず1つ）
-・業種: ${selectedBusinessType} （必ず1つ）
-・USP: ${selectedUSPs.join('、')} （必ず${selectedUSPs.length}つ全て）
-・環境: ${selectedEnvironment} （必ず1つ）
-・推奨用途: ${selectedRecommendation} （文末に必ず配置）
+### 4. environment（環境・設備）
+- **使用数**: 1個のみ必須
+- **選択肢**: ${availableEnvironments.join('、')}
+- **配置**: 体験の流れで自然に言及
+- **選択された環境**: ${selectedEnvironment}
 
-【推奨使用要素 - 積極的に活用】
-・サブ要素: ${selectedSubs.join('、')} （${selectedSubs.length > 0 ? '体験談の深みを増すため積極的に使用' : '該当なし'}）
+${selectedSubs.length > 0 ? `### 5. sub（サブ要素）
+- **使用数**: 何個でも可（自然さ優先）
+- **選択肢**: ${availableSubs.join('、')}
+- **配置**: uspと連携して体験談に組み込む
+- **選択されたサブ要素**: ${selectedSubs.join('、')}` : ''}
 
-🎯 ワード使用の厳密ルール:
-1. エリア「${selectedArea}」を必ず文中に含める
-2. 業種「${selectedBusinessType}」を必ず文中に含める  
-3. USP「${selectedUSPs.join('」「')}」を全て体験談として自然に織り込む
-4. 環境「${selectedEnvironment}」を印象・感想として表現する
-5. 推奨用途「${selectedRecommendation}」を文末に必ず配置する
-6. サブ要素「${selectedSubs.join('」「')}」を${selectedSubs.length > 0 ? '体験談に自然に織り込む（推奨）' : '使用しない'}
+### 6. phrase（推奨フレーズ）
+- **使用数**: 1個必須
+- **配置**: 文末に第三者への推奨として必ず配置
+- **選択肢**: ${availableRecommendations.join('、')}
+- **選択された推奨フレーズ**: ${selectedRecommendation}
 
-📚 品質管理ポイント
-${criticalQAKnowledge.map(qa => `・${qa.question} → ${qa.answer}`).join('\n')}
+## ペルソナ設定
 
-🌟 理想的な出力例（参考）
-${relevantSuccessExamples.map(example => `「${example.review}」`).join('\n\n')}
+### あなたの人物像
+- **年代**: ${selectedPattern.age_group}
+- **性格**: ${selectedPattern.personality_type}
+- **語彙特徴**: ${selectedPattern.vocabulary}
+- **文体特徴**: ${selectedPattern.characteristics}
+- **感嘆符使用**: ${selectedPattern.exclamation_marks}
+- **参考例**: 「${selectedPattern.example}」
 
-🚀 創作指示
-上記のペルソナになりきって、${selectedBusinessType}での体験談を${lengthGuidance}${targetLength}文字程度で自然に創作してください。
+## 【重要】厳格な制約事項
 
-重要：
-- あなた自身がその人物として実際に体験したかのように書く
-- 感情と具体性を込めて、人間らしい不完全さも含める
-- キーワードは強引に入れず、体験談の自然な流れで使用する
-- 同伴者への言及は完全に避け、個人的な体験のみ記述する
-- 文字数は${targetLength}文字程度を目安にする（短めを心がける）
-- 絵文字は絶対に使用しない（感嘆符や句読点のみ使用）
-- サブ要素${selectedSubs.length > 0 ? `「${selectedSubs.join('」「')}」を体験談に自然に含める` : 'は使用しない'}
+### 絶対に使用禁止のワード
+- 上記「選択肢」に記載されていないワード・表現は一切使用禁止
+- 勝手な組み合わせ（例：「抹茶カクテルの飲み比べセット」）は禁止
+- 関連ワードの追加（例：「カウンター」「席」「テーブル」等）は禁止
+- 指定されたワードのみを厳密に使用すること
 
-❌ 絶対禁止事項（CSV品質管理ルール準拠）：
-- 「Note:」「注意:」「備考:」「特徴:」「解説:」などの説明文は一切付けない
-- 解説や分析は一切含めない
-- メタ情報や特徴説明は絶対に含めない
-- 具体的な武将名（源義経、織田信長等）は絶対使用禁止
-- 関係ない酒類（スコッチ、バーボン等）は絶対使用禁止
-- 武器・武術関連（日本刀、抜刀術等）は絶対使用禁止
-- 上記で指定されていないキーワードの勝手な追加は禁止
-- 指定されたワード以外の店舗特徴や商品名の創作は禁止
+### 使用必須要素
+- area: ${selectedArea}（必ず1回使用）
+- business_type: ${selectedBusinessType}（必ず1回使用）
+- usp: ${selectedUSPs.join('、')}（自然に使用）
+- environment: ${selectedEnvironment}（必ず1回使用）
+${selectedSubs.length > 0 ? `- sub: ${selectedSubs.join('、')}（自然に使用）` : ''}
+- phrase: ${selectedRecommendation}（文末に必ず配置）
 
-🎯 出力形式：純粋なレビューテキストのみ
-- 説明文、注釈、解説は一切含めない
-- レビュー本文以外は絶対に出力しない
-- 改行後の追加情報も一切禁止
-- 品質管理システムが自動チェックして違反時は再生成
+## 生成指示
 
-${customPrompt ? `\n追加指示:\n${customPrompt}` : ''}
+${targetLength}文字程度で、上記の指定されたワードのみを使用して、${selectedPattern.age_group}の${selectedPattern.personality_type}として自然な口コミを生成してください。
+
+**重要**: 
+- 指定されていないワードは絶対に使用せず、選択されたワードのみで創作してください
+- 絵文字は使わず、一人で行った体験として書いてください
+- 口コミ本文のみを出力し、説明文・補足・文字数カウント・分析は一切不要です
+- ※補足、（文字数：）、**説明**などの余計な情報は絶対に追加しないでください
+
+${customPrompt ? `\n追加指示: ${customPrompt}` : ''}
 `;
 
   return { 
@@ -226,143 +245,308 @@ ${customPrompt ? `\n追加指示:\n${customPrompt}` : ''}
  * HTTPSリクエストでClaude APIを呼び出し、自然な口コミを生成
  */
 async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({
+  try {
+    const requestBody = {
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 1000,
-      temperature: 0.8,
+      temperature: 0.95, // より高い多様性のために温度を上げる
       messages: [
         {
           role: 'user',
           content: prompt
         }
       ]
-    });
+    };
 
-    const options = {
-      hostname: 'api.anthropic.com',
-      port: 443,
-      path: '/v1/messages',
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(postData),
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
-      }
-    };
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-    const req = https.request(options, (res) => {
-      let data = '';
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('Claude API Error Response:', errorData);
+      throw new Error(`Claude API Error: ${response.status} ${response.statusText} - ${errorData}`);
+    }
 
-      res.on('data', (chunk) => {
-        data += chunk;
+    const responseData = await response.json();
+    
+    if (responseData.content && responseData.content[0] && responseData.content[0].text) {
+      let generatedText = responseData.content[0].text.trim();
+      
+      // 余計な説明文・注釈を完全除去（より厳密に）
+      generatedText = generatedText.replace(/\n\nNote:[\s\S]*$/i, ''); // Note以降を削除
+      generatedText = generatedText.replace(/\n注意:[\s\S]*$/i, ''); // 注意以降を削除
+      generatedText = generatedText.replace(/\n備考:[\s\S]*$/i, ''); // 備考以降を削除
+      generatedText = generatedText.replace(/\n特徴:[\s\S]*$/i, ''); // 特徴以降を削除
+      generatedText = generatedText.replace(/\n解説:[\s\S]*$/i, ''); // 解説以降を削除
+      generatedText = generatedText.replace(/\n\n.*特徴[\s\S]*$/i, ''); // 特徴説明を削除
+      generatedText = generatedText.replace(/Note:[\s\S]*$/i, ''); // 行頭のNoteも削除
+      generatedText = generatedText.replace(/^["「]|["」]$/g, ''); // 先頭・末尾のクォート削除
+      generatedText = generatedText.replace(/\n{3,}/g, '\n\n'); // 過度な改行を制限
+      
+      // 🎲 ユニーク性確保の余計な情報を完全除去
+      generatedText = generatedText.replace(/\n\n🎲 ユニーク性確保:[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/🎲 ユニーク性確保:[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/生成ID:[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/レビュー番号:[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/文字数:[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/試行回数:[\s\S]*$/i, '');
+      
+      // ※補足・説明文・文字数カウントを完全除去
+      generatedText = generatedText.replace(/\n\n※補足[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/※補足[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/\n\n（文字数：[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/（文字数：[\s\S]*$/i, '');
+      generatedText = generatedText.replace(/\n\n\*\*[\s\S]*$/i, ''); // **で始まる説明文
+      generatedText = generatedText.replace(/\*\*[\s\S]*$/i, '');
+      
+      // 文字化けを修正
+      generatedText = generatedText.replace(/���/g, '');
+      generatedText = generatedText.replace(/�/g, '');
+      
+      // 改行で区切られた余計な情報を除去
+      const lines = generatedText.split('\n');
+      const cleanLines = lines.filter((line: string) => {
+        const trimmedLine = line.trim();
+        return !trimmedLine.startsWith('生成ID:') &&
+               !trimmedLine.startsWith('レビュー番号:') &&
+               !trimmedLine.startsWith('文字数:') &&
+               !trimmedLine.startsWith('試行回数:') &&
+               !trimmedLine.startsWith('※') &&
+               !trimmedLine.startsWith('（文字数：') &&
+               !trimmedLine.startsWith('- ') && // リスト形式の説明文
+               !trimmedLine.includes('🎲') &&
+               !trimmedLine.includes('ユニーク性確保') &&
+               !trimmedLine.includes('感嘆符:') &&
+               !trimmedLine.includes('語彙特徴:') &&
+               !trimmedLine.includes('体験の流れ:') &&
+               !trimmedLine.includes('指定キーワード') &&
+               !trimmedLine.includes('一人称視点') &&
+               !trimmedLine.includes('SNS的な表現');
       });
-
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-          
-          if (res.statusCode !== 200) {
-            console.error('Claude API Error Response:', response);
-            reject(new Error(`Claude API Error: ${response.error?.message || 'Unknown error'}`));
-            return;
-          }
-
-          if (response.content && response.content[0] && response.content[0].text) {
-            let generatedText = response.content[0].text.trim();
-            
-            // 余計なNote説明文を完全除去（より厳密に）
-            generatedText = generatedText.replace(/\n\nNote:[\s\S]*$/i, ''); // Note以降を削除
-            generatedText = generatedText.replace(/\n注意:[\s\S]*$/i, ''); // 注意以降を削除
-            generatedText = generatedText.replace(/\n備考:[\s\S]*$/i, ''); // 備考以降を削除
-            generatedText = generatedText.replace(/\n特徴:[\s\S]*$/i, ''); // 特徴以降を削除
-            generatedText = generatedText.replace(/\n解説:[\s\S]*$/i, ''); // 解説以降を削除
-            generatedText = generatedText.replace(/\n\n.*特徴[\s\S]*$/i, ''); // 特徴説明を削除
-            generatedText = generatedText.replace(/Note:[\s\S]*$/i, ''); // 行頭のNoteも削除
-            generatedText = generatedText.trim();
-            
-            console.log('Claude API Success:', { 
-              textLength: generatedText.length,
-              preview: generatedText.substring(0, 50) + '...'
-            });
-            resolve(generatedText);
-          } else {
-            console.error('Unexpected Claude API Response Structure:', response);
-            reject(new Error('Claude APIからの応答形式が予期しないものでした'));
-          }
-        } catch (parseError) {
-          console.error('Claude API Response Parse Error:', parseError);
-          console.error('Raw Response:', data);
-          reject(new Error(`Claude API応答のパースに失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`));
-        }
+      generatedText = cleanLines.join('\n');
+      
+      generatedText = generatedText.trim();
+      
+      console.log('Claude API Success:', { 
+        textLength: generatedText.length,
+        preview: generatedText.substring(0, 50) + '...'
       });
-    });
-
-    req.on('error', (error) => {
-      console.error('Claude API Request Error:', error);
-      reject(new Error(`Claude APIリクエストエラー: ${error.message}`));
-    });
-
-    req.on('timeout', () => {
-      console.error('Claude API Request Timeout');
-      reject(new Error('Claude APIリクエストがタイムアウトしました'));
-    });
-
-    // タイムアウト設定（30秒）
-    req.setTimeout(30000);
-
-    req.write(postData);
-    req.end();
-  });
+      return generatedText;
+    } else {
+      console.error('Unexpected Claude API Response Structure:', responseData);
+      throw new Error('Claude APIからの応答形式が予期しないものでした');
+    }
+  } catch (error) {
+    console.error('Claude API Request Error:', error);
+    throw new Error(`Claude APIリクエストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**
- * CSV駆動禁止表現チェック関数
- * qa_knowledge.csvの禁止表現ルールに基づいてレビューテキストをチェック
+ * 厳格なワード制限チェック関数（Claudeアプリ準拠）
+ * 指定されたワード以外の使用を検出
  */
-function checkProhibitedExpressions(reviewText: string, csvConfig: CSVConfig): {
+function checkStrictWordCompliance(
+  reviewText: string, 
+  csvConfig: CSVConfig, 
+  selectedElements: {
+    selectedArea: string;
+    selectedBusinessType: string;
+    selectedUSPs: string[];
+    selectedEnvironment: string;
+    selectedSubs: string[];
+    selectedRecommendation: string;
+  }
+): {
   hasViolation: boolean;
-  violatedTerms: string[];
+  violations: string[];
+} {
+  const { basicRules } = csvConfig;
+  const violations: string[] = [];
+  
+  // 使用可能ワードの完全リスト
+  const allowedWords = new Set<string>();
+  
+  // basic_rules.csvから使用可能ワードを抽出
+  const areas = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [];
+  const businessTypes = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [];
+  const usps = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')?.map(rule => rule.content) || [];
+  const environments = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [];
+  const subs = basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')?.map(rule => rule.content) || [];
+  const recommendations = basicRules?.filter(rule => rule.category === 'recommendation_phrases')?.map(rule => rule.content) || [];
+  
+  // 使用可能ワードをSetに追加
+  [...areas, ...businessTypes, ...usps, ...environments, ...subs, ...recommendations].forEach(word => {
+    if (word && word.trim()) {
+      allowedWords.add(word.trim());
+    }
+  });
+  
+  // 一般的な接続詞・助詞・基本語彙を許可リストに追加
+  const basicVocabulary = [
+    // 基本動詞
+    'いく', '行く', '行って', '行った', '来る', '来て', '来た', 'する', 'して', 'した', 'なる', 'なって', 'なった',
+    'ある', 'あって', 'あった', 'いる', 'いて', 'いた', 'できる', 'できて', 'できた', 'もらう', 'もらって', 'もらった',
+    // 基本形容詞
+    'いい', 'よい', '良い', '悪い', '新しい', '古い', '大きい', '小さい', '高い', '安い', '美しい', '綺麗', 'きれい',
+    '素晴らしい', 'すごい', 'すばらしい', '最高', '良かった', 'よかった', '嬉しい', '楽しい', '満足',
+    // 基本名詞
+    '時間', '場所', '人', '店', '店舗', '体験', '感じ', '気持ち', '印象', '雰囲気', '空間', '内装', '照明',
+    '料金', '価格', '値段', '予約', '利用', '使用', '今回', '今度', '次回', '一回', '初回', '最初', '最後',
+    // 接続詞・副詞
+    'また', 'そして', 'それで', 'でも', 'しかし', 'ただ', 'とても', 'すごく', 'かなり', 'ちょっと', '少し',
+    'もう', 'まだ', 'やっぱり', 'さすが', '本当に', '実際に', '特に', '普通に', '自然に',
+    // 助詞・助動詞
+    'は', 'が', 'を', 'に', 'で', 'と', 'から', 'まで', 'より', 'ほど', 'など', 'なども', 'だけ', 'しか',
+    'です', 'である', 'だった', 'でした', 'ます', 'ました', 'でしょう', 'だろう'
+  ];
+  
+  basicVocabulary.forEach(word => allowedWords.add(word));
+  
+  // 禁止ワードの検出（basic_rules.csvに存在しない具体的な名詞・サービス名）
+  const prohibitedPatterns = [
+    // 勝手に追加されがちなバー関連ワード
+    /カウンター/g,
+    /テーブル/g,
+    /席/g,
+    /ボックス/g,
+    /個室/g,
+    // 勝手な組み合わせ
+    /飲み比べセット/g,
+    /テイスティングセット/g,
+    /ビールの飲み比べ/g,
+    /ビール飲み比べ/g,
+    /コース/g,
+    /メニュー/g,
+    // 勝手な修飾語
+    /老舗/g,
+    /名店/g,
+    /有名店/g,
+    /人気店/g,
+    /話題の/g,
+    // 具体的すぎる描写
+    /バーテンダー/g,
+    /スタッフ/g,
+    /店員/g,
+    /マスター/g
+  ];
+  
+  // 禁止パターンのチェック
+  for (const pattern of prohibitedPatterns) {
+    const matches = reviewText.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        violations.push(`禁止ワード「${match}」を使用`);
+      });
+    }
+  }
+  
+  // 必須要素の使用チェック
+  if (!reviewText.includes(selectedElements.selectedArea)) {
+    violations.push(`必須エリア「${selectedElements.selectedArea}」が未使用`);
+  }
+  
+  if (!reviewText.includes(selectedElements.selectedBusinessType)) {
+    violations.push(`必須業種「${selectedElements.selectedBusinessType}」が未使用`);
+  }
+  
+  if (!reviewText.includes(selectedElements.selectedEnvironment)) {
+    violations.push(`必須環境「${selectedElements.selectedEnvironment}」が未使用`);
+  }
+  
+  if (!reviewText.includes(selectedElements.selectedRecommendation)) {
+    violations.push(`必須推奨フレーズ「${selectedElements.selectedRecommendation}」が未使用`);
+  }
+  
+  return {
+    hasViolation: violations.length > 0,
+    violations: violations
+  };
+}
+
+/**
+ * QA知識ベース駆動品質チェック関数
+ * qa_knowledge.csvのQA形式ナレッジに基づいてレビューの適切性をチェック
+ */
+function checkQAKnowledgeCompliance(reviewText: string, csvConfig: CSVConfig): {
+  hasViolation: boolean;
+  violatedRules: string[];
 } {
   const { qaKnowledge } = csvConfig;
-  const violatedTerms: string[] = [];
+  const violatedRules: string[] = [];
   
-  // qa_knowledge.csvから禁止表現を抽出
-  const prohibitedRules = qaKnowledge?.filter(qa => 
-    qa.category === '禁止表現検出' && 
-    (qa.priority === 'Critical' || qa.priority === 'High')
+  // QA知識ベースから制御ルールを抽出
+  const controlRules = qaKnowledge?.filter(qa => 
+    qa.priority === 'Critical' || qa.priority === 'High'
   ) || [];
   
-  for (const rule of prohibitedRules) {
-    // example_beforeに含まれる禁止表現をチェック
+  for (const rule of controlRules) {
+    // example_beforeに含まれる問題のある表現をチェック
     if (rule.example_before && reviewText.includes(rule.example_before)) {
-      violatedTerms.push(rule.example_before);
+      violatedRules.push(`${rule.question}: ${rule.example_before}を使用`);
     }
     
-    // 特定の禁止パターンをチェック
-    if (rule.question.includes('武将名') && 
-        (reviewText.includes('源義経') || reviewText.includes('織田信長') || 
-         reviewText.includes('豊臣秀吉') || reviewText.includes('徳川家康'))) {
-      violatedTerms.push('具体的武将名');
-    }
-    
-    if (rule.question.includes('酒類') && 
-        (reviewText.includes('スコッチ') || reviewText.includes('バーボン') || 
-         reviewText.includes('ウォッカ') || reviewText.includes('ジン'))) {
-      violatedTerms.push('関係ない酒類');
-    }
-    
-    if (rule.question.includes('武術') && 
-        (reviewText.includes('日本刀') || reviewText.includes('抜刀術') || 
-         reviewText.includes('武術') || reviewText.includes('刀剣'))) {
-      violatedTerms.push('武術関連');
+    // QA知識に基づく動的チェック
+    if (rule.question && rule.answer) {
+      const questionLower = rule.question.toLowerCase();
+      const answerLower = rule.answer.toLowerCase();
+      const reviewLower = reviewText.toLowerCase();
+      
+      // 限定的シチュエーションの特別チェック
+      if (questionLower.includes('限定的') || questionLower.includes('個人的すぎる')) {
+        const limitedScenarioPatterns = [
+          /\d+歳の誕生日/,
+          /長年の習慣/,
+          /人生の節目/,
+          /結婚記念日/,
+          /昇進祝い/,
+          /自宅での晩酌/,
+          /毎晩のルーティン/,
+          /日課の変更/
+        ];
+        
+        for (const pattern of limitedScenarioPatterns) {
+          if (pattern.test(reviewText)) {
+            violatedRules.push(`限定的シチュエーション検出: ${pattern.source}`);
+          }
+        }
+      }
+      
+      // 質問内容に基づいて適切性をチェック
+      if (questionLower.includes('使用') && answerLower.includes('避ける')) {
+        // example_beforeまたはanswerに含まれる避けるべき表現をチェック
+        const avoidTerms = (rule.example_before || '').split(/[、,，]/);
+        for (const term of avoidTerms) {
+          const cleanTerm = term.trim();
+          if (cleanTerm && reviewLower.includes(cleanTerm.toLowerCase())) {
+            violatedRules.push(`${rule.question}: ${cleanTerm}を使用`);
+          }
+        }
+      }
+      
+      // カテゴリベースのチェック
+      if (rule.category && rule.category.includes('禁止')) {
+        const prohibitedTerms = (rule.example_before || rule.answer || '').split(/[、,，]/);
+        for (const term of prohibitedTerms) {
+          const cleanTerm = term.trim();
+          if (cleanTerm && reviewLower.includes(cleanTerm.toLowerCase())) {
+            violatedRules.push(`${rule.category}: ${cleanTerm}を検出`);
+          }
+        }
+      }
     }
   }
   
   return {
-    hasViolation: violatedTerms.length > 0,
-    violatedTerms: violatedTerms
+    hasViolation: violatedRules.length > 0,
+    violatedRules: violatedRules
   };
 }
 
@@ -395,36 +579,59 @@ function normalizeAgeGroup(ageGroup: string): number {
 }
 
 /**
- * 文字列類似度計算関数（簡易版・緩い判定）
- * 共通する文字列の割合で類似度を計算
+ * ワードベース重複チェック関数（完全新設計）
+ * 使用されたワードの組み合わせで重複を判定
  */
-function calculateSimilarity(str1: string, str2: string): number {
-  if (str1 === str2) return 1.0;
+function checkWordBasedDuplication(
+  reviewText: string,
+  selectedElements: {
+    area: string;
+    businessType: string;
+    usps: string[];
+    environment: string;
+    subs: string[];
+  },
+  existingWordCombinations: string[]
+): {
+  isDuplicate: boolean;
+  wordCombination: string;
+} {
+  // 使用ワードの組み合わせを生成（順序を統一）
+  const usedWords = [
+    selectedElements.area,
+    selectedElements.businessType,
+    ...selectedElements.usps.sort(),
+    selectedElements.environment,
+    ...selectedElements.subs.sort()
+  ].filter(word => word && word.trim() !== '');
   
-  // 文字数が大きく異なる場合は類似度低
-  const len1 = str1.length;
-  const len2 = str2.length;
-  const lengthDiff = Math.abs(len1 - len2) / Math.max(len1, len2);
-  if (lengthDiff > 0.5) return 0;
+  const wordCombination = usedWords.join('|');
   
-  // 共通する部分文字列をチェック（緩い判定）
-  const words1 = str1.split(/[。！？、]/);
-  const words2 = str2.split(/[。！？、]/);
+  // 既存の組み合わせと完全一致チェック
+  let isDuplicate = existingWordCombinations.includes(wordCombination);
   
-  let commonCount = 0;
-  for (const word1 of words1) {
-    if (word1.length > 10) { // 10文字以上の文で判定
-      for (const word2 of words2) {
-        if (word1.includes(word2) || word2.includes(word1)) {
-          commonCount++;
-          break;
-        }
+  // より厳密なチェック：部分的な重複も検出
+  if (!isDuplicate) {
+    for (const existingCombination of existingWordCombinations) {
+      const existingWords = existingCombination.split('|');
+      const currentWords = wordCombination.split('|');
+      
+      // 80%以上のワードが重複している場合も重複とみなす
+      const commonWords = currentWords.filter(word => existingWords.includes(word));
+      const overlapRate = commonWords.length / Math.max(currentWords.length, existingWords.length);
+      
+      if (overlapRate >= 0.8) {
+        isDuplicate = true;
+        console.log(`⚠️ 高重複率検出: ${(overlapRate * 100).toFixed(1)}% (${commonWords.length}/${Math.max(currentWords.length, existingWords.length)})`);
+        break;
       }
     }
   }
   
-  const maxWords = Math.max(words1.length, words2.length);
-  return maxWords > 0 ? commonCount / maxWords : 0;
+  return {
+    isDuplicate,
+    wordCombination
+  };
 }
 
 /**
@@ -460,30 +667,42 @@ function calculateQualityScore(
     score -= 0.2; // 長めだが許容範囲
   }
 
-  // 必須要素の厳密チェック（basic_rules.csvルール準拠）
+  // 必須要素の最低使用回数チェック（basic_rules.csvルール準拠）
   
-  // エリア必須チェック（必ず1つ）
-  if (!reviewText.includes(selectedElements.area)) {
+  // エリア最低使用回数チェック（最低1回）
+  const areaCount = (reviewText.match(new RegExp(selectedElements.area.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+  if (areaCount === 0) {
     score -= 3.0; // エリア言及なしは重大減点
   }
   
-  // 業種必須チェック（必ず1つ）
-  if (!reviewText.includes(selectedElements.businessType)) {
+  // 業種最低使用回数チェック（最低1回）
+  const businessTypeCount = (reviewText.match(new RegExp(selectedElements.businessType.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+  if (businessTypeCount === 0) {
     score -= 3.0; // 業種言及なしは重大減点
   }
   
-  // USP厳密チェック（選択された全てのUSPが必要）
+  // USP最低使用回数チェック（各USP最低1回、文字数に応じて複数回使用可）
   let uspFoundCount = 0;
+  let uspTotalMentions = 0;
   for (const usp of selectedElements.usps) {
-    if (reviewText.includes(usp)) {
+    const uspCount = (reviewText.match(new RegExp(usp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+    if (uspCount > 0) {
       uspFoundCount++;
+      uspTotalMentions += uspCount;
     }
   }
   const uspMissingCount = selectedElements.usps.length - uspFoundCount;
   score -= uspMissingCount * 1.5; // 不足USP1つにつき1.5点減点
   
-  // 環境要素必須チェック（必ず1つ）
-  if (!selectedElements.environment || !reviewText.includes(selectedElements.environment)) {
+  // 文字数に応じたUSP複数使用ボーナス
+  if (textLength > 250 && uspTotalMentions > selectedElements.usps.length) {
+    score += 0.3; // 長文でUSPを複数回言及した場合のボーナス
+  }
+  
+  // 環境要素最低使用回数チェック（最低1回）
+  const environmentCount = selectedElements.environment ? 
+    (reviewText.match(new RegExp(selectedElements.environment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length : 0;
+  if (environmentCount === 0) {
     score -= 2.0; // 環境言及なしは重大減点
   }
   
@@ -606,7 +825,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('📥 リクエストボディ解析開始:', { bodyType: typeof req.body });
     
-    const { csvConfig, reviewCount, customPrompt, batchName, saveToDB }: GenerateReviewsRequest = req.body;
+    const { csvConfig, reviewCount, customPrompt, batchName, saveToDB, existingTexts, existingWordCombinations }: GenerateReviewsRequest = req.body;
 
     console.log('📊 パラメータ確認:', {
       hasCsvConfig: !!csvConfig,
@@ -652,6 +871,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // レビュー生成開始
     const generatedReviews: GeneratedReview[] = [];
     const generatedTexts: string[] = []; // 重複チェック用（配列で管理）
+    const usedWordCombinations: string[] = []; // ワード組み合わせ重複防止用
     
     // データベースから既存のレビューを取得してグローバル重複チェック
     let existingReviews: string[] = [];
@@ -665,12 +885,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
     
+    // バッチ間重複防止：既存テキストをマージ
+    if (existingTexts && existingTexts.length > 0) {
+      existingReviews = [...existingReviews, ...existingTexts];
+      console.log(`🔄 バッチ間重複防止: +${existingTexts.length}件追加 (総計: ${existingReviews.length}件)`);
+    }
+    
+    // バッチ間ワード組み合わせ重複防止：既存ワード組み合わせをマージ
+    if (existingWordCombinations && existingWordCombinations.length > 0) {
+      usedWordCombinations.push(...existingWordCombinations);
+      console.log(`🔄 ワード組み合わせ重複防止: +${existingWordCombinations.length}件追加 (総計: ${usedWordCombinations.length}件)`);
+    }
+    
     console.log(`🚀 ${reviewCount}件のAI創作レビュー生成開始`);
     
     for (let i = 0; i < reviewCount; i++) {
       let reviewText = '';
       let attempts = 0;
-      const maxAttempts = 5; // 最大再試行回数
+      const maxAttempts = 2; // Claudeの判断を信頼し、最小限の再試行
       let finalPromptResult: any = null;
       let finalRandomPattern: any = null;
       
@@ -692,7 +924,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           // CSV駆動動的プロンプト生成（ランダム性を高めるため毎回生成）
           const promptResult = buildDynamicPrompt(csvConfig, randomPattern, customPrompt);
           
-          console.log(`🎯 選択された要素:`, {
+          // 使用可能ワードの完全リスト表示（デバッグ用）
+          const availableWords = {
+            areas: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [],
+            businessTypes: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [],
+            usps: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')?.map(rule => rule.content) || [],
+            environments: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [],
+            subs: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')?.map(rule => rule.content) || [],
+            recommendations: csvConfig.basicRules?.filter(rule => rule.category === 'recommendation_phrases')?.map(rule => rule.content) || []
+          };
+          
+          console.log(`🎯 選択された要素 (レビュー ${i + 1}):`, {
             area: promptResult.selectedArea,
             businessType: promptResult.selectedBusinessType,
             usps: promptResult.selectedUSPs,
@@ -700,52 +942,75 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             subs: promptResult.selectedSubs,
             recommendation: promptResult.selectedRecommendation
           });
+          
+          console.log(`📋 使用可能ワード一覧:`, {
+            areas: availableWords.areas,
+            businessTypes: availableWords.businessTypes,
+            usps: availableWords.usps,
+            environments: availableWords.environments,
+            subs: availableWords.subs,
+            recommendations: availableWords.recommendations
+          });
+          
+          // CSV要素の整合性チェック（スコープ内の変数を使用）
+          const currentAreas = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [];
+          const currentBusinessTypes = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [];
+          const currentEnvironments = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [];
+          
+          console.log(`🔍 CSV要素整合性チェック:`, {
+            areaValid: currentAreas.includes(promptResult.selectedArea),
+            businessTypeValid: currentBusinessTypes.includes(promptResult.selectedBusinessType),
+            environmentValid: currentEnvironments.includes(promptResult.selectedEnvironment),
+            uspCount: promptResult.selectedUSPs.length,
+            subCount: promptResult.selectedSubs.length,
+            availableAreas: currentAreas,
+            availableBusinessTypes: currentBusinessTypes,
+            availableEnvironments: currentEnvironments
+          });
           const { dynamicPrompt } = promptResult;
           
-          // ユニーク性を高めるためのプロンプト追加
-          const uniquePrompt = dynamicPrompt + `\n\n🔄 重要：これまでに生成されたレビューとは完全に異なる、ユニークな体験談を創作してください。同じ表現や似た構成は避け、新鮮で独創的な内容にしてください。試行回数: ${attempts}`;
+          // Claude API呼び出し（クリーンなプロンプトで）
+          reviewText = await callClaudeAPI(dynamicPrompt, anthropicApiKey);
           
-          // Claude API呼び出し
-          reviewText = await callClaudeAPI(uniquePrompt, anthropicApiKey);
+          // 厳格なワード制限チェック（Claudeアプリ準拠）
+          const wordViolationResult = checkStrictWordCompliance(reviewText, csvConfig, {
+            selectedArea: promptResult.selectedArea,
+            selectedBusinessType: promptResult.selectedBusinessType,
+            selectedUSPs: promptResult.selectedUSPs,
+            selectedEnvironment: promptResult.selectedEnvironment,
+            selectedSubs: promptResult.selectedSubs,
+            selectedRecommendation: promptResult.selectedRecommendation
+          });
           
-          // CSV駆動禁止表現チェック
-          const prohibitedCheckResult = checkProhibitedExpressions(reviewText, csvConfig);
-          if (prohibitedCheckResult.hasViolation) {
-            console.log(`⚠️ 禁止表現検出: ${prohibitedCheckResult.violatedTerms.join(', ')} - 再生成します (試行${attempts}回目)`);
+          if (wordViolationResult.hasViolation) {
+            console.log(`⚠️ 指定ワード外使用検出: ${wordViolationResult.violations.join(', ')} - 再生成します (試行${attempts}回目)`);
             continue; // 再生成
           }
           
-                      // グローバル重複チェック（既存レビュー + 今回生成分）
-            const allExistingTexts = [...existingReviews, ...generatedTexts];
-            
-            // 完全一致チェック
-            if (!allExistingTexts.includes(reviewText)) {
-              // 類似度チェック（緩い判定）
-              let isSimilar = false;
-              let maxSimilarity = 0;
-              
-              for (const existingText of allExistingTexts) {
-                const similarity = calculateSimilarity(reviewText, existingText);
-                if (similarity > maxSimilarity) {
-                  maxSimilarity = similarity;
-                }
-                if (similarity > 0.6) { // 類似度閾値60%
-                  isSimilar = true;
-                  console.log(`⚠️ 類似レビュー検出 (類似度: ${(similarity * 100).toFixed(1)}%) - 再生成します`);
-                  break;
-                }
-              }
-              
-              if (!isSimilar) {
-                generatedTexts.push(reviewText);
-                finalPromptResult = promptResult;
-                finalRandomPattern = randomPattern;
-                console.log(`✅ ユニークレビュー生成成功 (試行${attempts}回目, 最大類似度: ${(maxSimilarity * 100).toFixed(1)}%)`);
-                break;
-              }
-            } else {
-              console.log(`⚠️ 完全重複検出（既存レビューと一致） - 再生成します (試行${attempts}回目)`);
-            }
+          // 基本チェック
+          const hasEmoji = /[\uD83C-\uDBFF\uDC00-\uDFFF]+|[\u2600-\u27BF]|😊|🎉|✨/g.test(reviewText);
+          const tooShort = reviewText.length < 50;
+          
+          if (hasEmoji || tooShort) {
+            console.log(`⚠️ 基本チェック失敗 (絵文字: ${hasEmoji}, 短すぎ: ${tooShort}) - 再生成します (試行${attempts}回目)`);
+            continue; // 再生成
+          }
+          
+          // Claudeの創作力を信頼（重複チェック最小化）
+          const allExistingTexts = [...existingReviews, ...generatedTexts];
+          const isExactDuplicate = allExistingTexts.some(existing => 
+            existing.trim() === reviewText.trim()
+          );
+          
+          if (!isExactDuplicate) {
+            generatedTexts.push(reviewText);
+            finalPromptResult = promptResult;
+            finalRandomPattern = randomPattern;
+            console.log(`✅ レビュー生成成功 (試行${attempts}回目) - 文字数: ${reviewText.length}`);
+            break;
+          } else {
+            console.log(`⚠️ 完全一致重複検出 - 再生成します (試行${attempts}回目)`);
+          }
           
           // 再試行の場合は少し待機
           if (attempts < maxAttempts) {
@@ -753,20 +1018,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
         }
         
-        // 最大試行回数に達した場合でも重複マークは付けない
-        if (attempts >= maxAttempts) {
-          console.warn(`⚠️ レビュー ${i + 1}: ${maxAttempts}回試行完了 - 最終結果を採用`);
+        // 最大試行回数に達した場合は最後の結果を使用
+        if (attempts >= maxAttempts && (!finalPromptResult || !finalRandomPattern)) {
+          console.warn(`⚠️ レビュー ${i + 1}: ${maxAttempts}回試行完了 - 最後の結果を使用`);
           // 最後の試行結果を使用
-          if (!finalPromptResult || !finalRandomPattern) {
-            finalPromptResult = buildDynamicPrompt(csvConfig, csvConfig.humanPatterns[0], customPrompt);
-            finalRandomPattern = csvConfig.humanPatterns[0];
+          if (reviewText && reviewText.length > 50) {
+            // 新しいパターンで最後の試行
+            const lastRandomPattern = csvConfig.humanPatterns[Math.floor(Math.random() * csvConfig.humanPatterns.length)];
+            const lastPromptResult = buildDynamicPrompt(csvConfig, lastRandomPattern, customPrompt);
+            finalPromptResult = lastPromptResult;
+            finalRandomPattern = lastRandomPattern;
+            generatedTexts.push(reviewText);
+          } else {
+            console.error(`❌ レビュー ${i + 1}: 有効な結果なし - スキップします`);
+            continue;
           }
         }
         
         // 最終結果が設定されていない場合のフォールバック
         if (!finalPromptResult || !finalRandomPattern) {
-          finalPromptResult = buildDynamicPrompt(csvConfig, csvConfig.humanPatterns[0], customPrompt);
-          finalRandomPattern = csvConfig.humanPatterns[0];
+          console.error(`❌ レビュー ${i + 1}: 最終結果が設定されていません - スキップします`);
+          continue; // このレビューをスキップ
         }
         
         // 品質スコア計算
@@ -795,6 +1067,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           finalPromptResult.selectedEnvironment,
           ...selectedSubs
         ].filter(word => word && word.trim() !== '').join('|');
+        
+        // デバッグログ：usedWords生成の詳細
+        console.log(`🔍 usedWords生成 (レビュー ${i + 1}):`, {
+          selectedArea: finalPromptResult.selectedArea,
+          selectedBusinessType: finalPromptResult.selectedBusinessType,
+          selectedUSPs: finalPromptResult.selectedUSPs,
+          selectedEnvironment: finalPromptResult.selectedEnvironment,
+          selectedSubs: selectedSubs,
+          usedWords: usedWords,
+          usedWordsLength: usedWords.length
+        });
 
         generatedReviews.push({
           reviewText: reviewText,
