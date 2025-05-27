@@ -221,7 +221,9 @@ function levenshteinDistance(str1: string, str2: string): number {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('🚀 最適化レビュー生成API呼び出し:', {
     method: req.method,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    userAgent: req.headers['user-agent'],
+    contentLength: req.headers['content-length']
   });
 
   // CORSヘッダー設定
@@ -274,7 +276,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const generatedReviews: GeneratedReview[] = [];
     const generatedTexts: string[] = [];
     
-    console.log(`🚀 ${reviewCount}件の最適化レビュー生成開始`);
+    console.log(`🚀 ${reviewCount}件の最適化レビュー生成開始`, {
+      humanPatternsAvailable: csvConfig.humanPatterns?.length || 0,
+      basicRulesAvailable: csvConfig.basicRules?.length || 0,
+      startTime: new Date().toISOString()
+    });
     
     for (let i = 0; i < reviewCount; i++) {
       let attempts = 0;

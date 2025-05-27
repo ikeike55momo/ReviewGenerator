@@ -304,6 +304,49 @@ OK例：「楽しめました」「体験できました」「満足できる内
             <button
               onClick={async () => {
                 try {
+                  console.log('⚡ 超軽量版レビュー生成テスト開始');
+                  const testCsvConfig = {
+                    humanPatterns: [
+                      { age_group: '30代', personality_type: 'カジュアル' }
+                    ],
+                    basicRules: [
+                      { category: 'required_elements', type: 'area', content: '池袋西口' },
+                      { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                      { category: 'required_elements', type: 'usp', content: '日本酒' }
+                    ]
+                  };
+                  
+                  const response = await fetch('/api/generate-reviews-ultra-lite', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      csvConfig: testCsvConfig
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  console.log('⚡ 超軽量版テスト結果:', result);
+                  
+                  if (response.ok && Array.isArray(result) && result.length > 0) {
+                    alert(`✅ 超軽量版レビュー生成成功!\n\n生成されたレビュー:\n"${result[0].reviewText}"\n\n文字数: ${result[0].reviewText.length}文字\nモード: ${result[0].generationParameters.mode}`);
+                  } else {
+                    alert(`❌ 超軽量版レビュー生成失敗: ${result.error || 'Unknown error'}`);
+                  }
+                } catch (error) {
+                  console.error('⚡ 超軽量版テストエラー:', error);
+                  alert(`❌ 超軽量版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+              className="px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 mr-2"
+            >
+              超軽量版テスト（1件）
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
                   console.log('🚀 最適化版レビュー生成テスト開始');
                   const testCsvConfig = {
                     humanPatterns: [
@@ -338,7 +381,7 @@ OK例：「楽しめました」「体験できました」「満足できる内
                     ).join('\n');
                     alert(`✅ 最適化版レビュー生成成功!\n\n生成件数: ${result.length}件\n\n${summary}`);
                   } else {
-                    alert(`❌ 最適化版レビュー生成失敗: ${result.error?.message || 'Unknown error'}`);
+                    alert(`❌ 最適化版レビュー生成失敗: ${result.error || 'Unknown error'}`);
                   }
                 } catch (error) {
                   console.error('🚀 最適化版テストエラー:', error);
@@ -355,6 +398,7 @@ OK例：「楽しめました」「体験できました」「満足できる内
             環境テスト: Netlify環境での動作確認<br/>
             軽量版テスト: Claude APIでの1件レビュー生成確認<br/>
             最小限テスト: CSV設定を使った1件レビュー生成確認<br/>
+            超軽量版テスト: 最適化版ベースの1件生成確認<br/>
             最適化版テスト: 実用的な3件レビュー生成確認（重複チェック付き）
           </p>
         </div>
