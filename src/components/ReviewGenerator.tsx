@@ -261,56 +261,51 @@ OK例：「楽しめました」「体験できました」「満足できる内
             <button
               onClick={async () => {
                 try {
-                  console.log('🔬 中間版レビュー生成テスト開始');
+                  console.log('🔬 最小限レビュー生成テスト開始');
                   const testCsvConfig = {
                     humanPatterns: [
-                      { age_group: '30代', personality_type: 'カジュアル', vocabulary: 'フランクな表現', characteristics: '親しみやすい' },
-                      { age_group: '20代', personality_type: 'エネルギッシュ', vocabulary: '活発な表現', characteristics: '元気' }
+                      { age_group: '30代', personality_type: 'カジュアル' }
                     ],
                     basicRules: [
                       { category: 'required_elements', type: 'area', content: '池袋西口' },
                       { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
-                      { category: 'required_elements', type: 'usp', content: '日本酒' },
-                      { category: 'required_elements', type: 'usp', content: '和の雰囲気' }
+                      { category: 'required_elements', type: 'usp', content: '日本酒' }
                     ]
                   };
                   
-                  const response = await fetch('/api/generate-reviews-medium', {
+                  const response = await fetch('/api/generate-reviews-minimal', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                      csvConfig: testCsvConfig,
-                      reviewCount: 3
+                      csvConfig: testCsvConfig
                     })
                   });
                   
                   const result = await response.json();
-                  console.log('🔬 中間版テスト結果:', result);
+                  console.log('🔬 最小限テスト結果:', result);
                   
                   if (response.ok && Array.isArray(result) && result.length > 0) {
-                    const successCount = result.filter(r => r.qualityScore > 0).length;
-                    const avgLength = Math.round(result.reduce((sum, r) => sum + r.reviewText.length, 0) / result.length);
-                    alert(`✅ 中間版レビュー生成成功!\n\n生成数: ${result.length}件\n成功数: ${successCount}件\n平均文字数: ${avgLength}文字\n\n最初のレビュー:\n"${result[0].reviewText.substring(0, 100)}..."`);
+                    alert(`✅ 最小限レビュー生成成功!\n\n生成されたレビュー:\n"${result[0].reviewText}"\n\n文字数: ${result[0].reviewText.length}文字\nエリア: ${result[0].generationParameters.selectedArea}\n業種: ${result[0].generationParameters.selectedBusinessType}\n特徴: ${result[0].generationParameters.selectedUSP}`);
                   } else {
-                    alert(`❌ 中間版レビュー生成失敗: ${result.error?.message || 'Unknown error'}`);
+                    alert(`❌ 最小限レビュー生成失敗: ${result.error?.message || 'Unknown error'}`);
                   }
                 } catch (error) {
-                  console.error('🔬 中間版テストエラー:', error);
-                  alert(`❌ 中間版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                  console.error('🔬 最小限テストエラー:', error);
+                  alert(`❌ 最小限テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
               }}
-              className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+              className="px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
             >
-              中間版テスト（3件）
+              最小限テスト（CSV使用）
             </button>
           </div>
           
           <p className="text-xs text-yellow-700 mt-2">
             環境テスト: Netlify環境での動作確認<br/>
             軽量版テスト: Claude APIでの1件レビュー生成確認<br/>
-            中間版テスト: CSV設定を使った3件レビュー生成確認
+            最小限テスト: CSV設定を使った1件レビュー生成確認
           </p>
         </div>
 
