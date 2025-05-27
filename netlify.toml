@@ -18,10 +18,11 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# APIルート用の関数設定
+# APIルート用の関数設定（Next.js 14対応）
 [functions]
   node_bundler = "esbuild"
   external_node_modules = ["@anthropic-ai/sdk"]
+  included_files = ["src/pages/api/**"]
 
 # ヘッダー設定（CORS対応）
 [[headers]]

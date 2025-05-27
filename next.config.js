@@ -7,8 +7,7 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Netlify最適化設定
-  target: 'serverless', // Netlify Functions用
+  // Next.js 14では target プロパティは廃止（自動でserverless）
   
   // TypeScript設定
   typescript: {
@@ -35,7 +34,7 @@ const nextConfig = {
 
   // 実験的機能（Netlify対応）
   experimental: {
-    // API Routes最適化
+    // Server Components用外部パッケージ設定（Next.js 14対応）
     serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
   },
 
