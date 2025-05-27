@@ -387,9 +387,54 @@ OK例：「楽しめました」「体験できました」「満足できる内
                   alert(`❌ シンプル版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
               }}
-              className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+              className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 mr-2"
             >
               シンプル版テスト（5件）
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🔍 デバッグ版レビュー生成テスト開始');
+                  const testCsvConfig = {
+                    humanPatterns: [
+                      { age_group: '30代', personality_type: 'カジュアル' }
+                    ],
+                    basicRules: [
+                      { category: 'required_elements', type: 'area', content: '池袋西口' },
+                      { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                      { category: 'required_elements', type: 'usp', content: '日本酒' }
+                    ]
+                  };
+                  
+                  const response = await fetch('/api/generate-reviews-debug', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      csvConfig: testCsvConfig
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  console.log('🔍 デバッグ版テスト結果:', result);
+                  
+                  if (response.ok && Array.isArray(result) && result.length > 0) {
+                    alert(`✅ デバッグ版レビュー生成成功!\n\n生成されたレビュー:\n"${result[0].reviewText}"\n\n文字数: ${result[0].reviewText.length}文字\nモード: ${result[0].generationParameters.mode}`);
+                  } else {
+                    const errorInfo = result.details ? 
+                      `\n\nエラー詳細:\nタイプ: ${result.details.errorType}\nメッセージ: ${result.details.errorMessage}` : '';
+                    alert(`❌ デバッグ版レビュー生成失敗: ${result.error || 'Unknown error'}${errorInfo}`);
+                  }
+                } catch (error) {
+                  console.error('🔍 デバッグ版テストエラー:', error);
+                  alert(`❌ デバッグ版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+              className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+            >
+              🔍 デバッグ版テスト（詳細ログ）
             </button>
           </div>
           
@@ -398,7 +443,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
             軽量版テスト: Claude APIでの1件レビュー生成確認<br/>
             最小限テスト: CSV設定を使った1件レビュー生成確認<br/>
             超軽量版テスト: 最適化版ベースの1件生成確認<br/>
-            シンプル版テスト: 重複チェックなしの5件生成確認
+            シンプル版テスト: 重複チェックなしの5件生成確認<br/>
+            🔍 デバッグ版テスト: 詳細ログ付き1件生成（エラー原因特定用）
           </p>
         </div>
 
