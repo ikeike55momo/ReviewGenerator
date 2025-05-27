@@ -253,15 +253,64 @@ OK例：「楽しめました」「体験できました」「満足できる内
                   alert(`❌ 軽量版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
               }}
-              className="px-4 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+              className="px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700"
             >
-              軽量版レビュー生成テスト
+              軽量版テスト
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🔬 中間版レビュー生成テスト開始');
+                  const testCsvConfig = {
+                    humanPatterns: [
+                      { age_group: '30代', personality_type: 'カジュアル', vocabulary: 'フランクな表現', characteristics: '親しみやすい' },
+                      { age_group: '20代', personality_type: 'エネルギッシュ', vocabulary: '活発な表現', characteristics: '元気' }
+                    ],
+                    basicRules: [
+                      { category: 'required_elements', type: 'area', content: '池袋西口' },
+                      { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                      { category: 'required_elements', type: 'usp', content: '日本酒' },
+                      { category: 'required_elements', type: 'usp', content: '和の雰囲気' }
+                    ]
+                  };
+                  
+                  const response = await fetch('/api/generate-reviews-medium', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      csvConfig: testCsvConfig,
+                      reviewCount: 3
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  console.log('🔬 中間版テスト結果:', result);
+                  
+                  if (response.ok && Array.isArray(result) && result.length > 0) {
+                    const successCount = result.filter(r => r.qualityScore > 0).length;
+                    const avgLength = Math.round(result.reduce((sum, r) => sum + r.reviewText.length, 0) / result.length);
+                    alert(`✅ 中間版レビュー生成成功!\n\n生成数: ${result.length}件\n成功数: ${successCount}件\n平均文字数: ${avgLength}文字\n\n最初のレビュー:\n"${result[0].reviewText.substring(0, 100)}..."`);
+                  } else {
+                    alert(`❌ 中間版レビュー生成失敗: ${result.error?.message || 'Unknown error'}`);
+                  }
+                } catch (error) {
+                  console.error('🔬 中間版テストエラー:', error);
+                  alert(`❌ 中間版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+              className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+            >
+              中間版テスト（3件）
             </button>
           </div>
           
           <p className="text-xs text-yellow-700 mt-2">
             環境テスト: Netlify環境での動作確認<br/>
-            軽量版テスト: Claude APIでの1件レビュー生成確認
+            軽量版テスト: Claude APIでの1件レビュー生成確認<br/>
+            中間版テスト: CSV設定を使った3件レビュー生成確認
           </p>
         </div>
 
