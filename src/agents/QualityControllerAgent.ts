@@ -25,7 +25,7 @@ export class QualityControllerAgent extends Agent {
       .map(rule => rule.content);
 
     for (const element of requiredElements) {
-      if (!review.text.includes(element)) {
+      if (!review.reviewText.includes(element)) {
         score -= 1.0;
       }
     }
@@ -36,7 +36,7 @@ export class QualityControllerAgent extends Agent {
       .map(rule => rule.content);
 
     for (const expression of prohibitedExpressions) {
-      if (review.text.includes(expression)) {
+      if (review.reviewText.includes(expression)) {
         score -= 2.0;
       }
     }
@@ -46,14 +46,14 @@ export class QualityControllerAgent extends Agent {
       .filter(qa => qa.priority === 'Critical');
 
     for (const rule of criticalRules) {
-      if (review.text.includes(rule.example_before)) {
+      if (review.reviewText.includes(rule.example_before)) {
         score -= 1.5;
       }
     }
 
     return {
       ...review,
-      score: Math.max(0, score)
+      qualityScore: Math.max(0, score)
     };
   }
 }
