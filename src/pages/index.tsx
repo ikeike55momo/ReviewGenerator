@@ -123,7 +123,7 @@ export default function HomePage() {
         hasCustomPrompt: !!customPrompt
       });
 
-      const response = await fetch('/api/generate-reviews', {
+      const response = await fetch('/api/generate-reviews-optimized', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -83,7 +83,7 @@ OK例：「楽しめました」「体験できました」「満足できる内
    * @param value 新しい生成件数
    */
   const handleReviewCountChange = (value: number) => {
-    setReviewCount(Math.max(1, Math.min(100, value)));
+    setReviewCount(Math.max(1, Math.min(50, value))); // 最適化版では50件まで
   };
 
   /**
@@ -118,19 +118,19 @@ OK例：「楽しめました」「体験できました」「満足できる内
             <input
               type="range"
               min="1"
-              max="100"
+              max="50"
               value={reviewCount}
               onChange={(e) => handleReviewCountChange(parseInt(e.target.value))}
               className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               disabled={isGenerating}
             />
-            <span className="text-sm text-gray-500">100</span>
+            <span className="text-sm text-gray-500">50</span>
           </div>
           <div className="mt-2">
             <input
               type="number"
               min="1"
-              max="100"
+              max="50"
               value={reviewCount}
               onChange={(e) => handleReviewCountChange(parseInt(e.target.value) || 1)}
               className="w-20 px-3 py-1 border border-gray-300 rounded text-sm"
@@ -296,16 +296,66 @@ OK例：「楽しめました」「体験できました」「満足できる内
                   alert(`❌ 最小限テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
               }}
-              className="px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+              className="px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 mr-2"
             >
               最小限テスト（CSV使用）
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🚀 最適化版レビュー生成テスト開始');
+                  const testCsvConfig = {
+                    humanPatterns: [
+                      { age_group: '30代', personality_type: 'カジュアル' },
+                      { age_group: '20代', personality_type: 'フレンドリー' }
+                    ],
+                    basicRules: [
+                      { category: 'required_elements', type: 'area', content: '池袋西口' },
+                      { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                      { category: 'required_elements', type: 'usp', content: '日本酒' },
+                      { category: 'required_elements', type: 'environment', content: '落ち着いた雰囲気' }
+                    ]
+                  };
+                  
+                  const response = await fetch('/api/generate-reviews-optimized', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      csvConfig: testCsvConfig,
+                      reviewCount: 3
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  console.log('🚀 最適化版テスト結果:', result);
+                  
+                  if (response.ok && Array.isArray(result) && result.length > 0) {
+                    const summary = result.map((review, index) => 
+                      `${index + 1}. "${review.reviewText.substring(0, 50)}..." (${review.reviewText.length}文字)`
+                    ).join('\n');
+                    alert(`✅ 最適化版レビュー生成成功!\n\n生成件数: ${result.length}件\n\n${summary}`);
+                  } else {
+                    alert(`❌ 最適化版レビュー生成失敗: ${result.error?.message || 'Unknown error'}`);
+                  }
+                } catch (error) {
+                  console.error('🚀 最適化版テストエラー:', error);
+                  alert(`❌ 最適化版テストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+              }}
+              className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+            >
+              最適化版テスト（3件）
             </button>
           </div>
           
           <p className="text-xs text-yellow-700 mt-2">
             環境テスト: Netlify環境での動作確認<br/>
             軽量版テスト: Claude APIでの1件レビュー生成確認<br/>
-            最小限テスト: CSV設定を使った1件レビュー生成確認
+            最小限テスト: CSV設定を使った1件レビュー生成確認<br/>
+            最適化版テスト: 実用的な3件レビュー生成確認（重複チェック付き）
           </p>
         </div>
 
@@ -334,8 +384,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
         {/* 生成時間の目安 */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            予想生成時間: 約{Math.ceil(reviewCount / 10)}分
-            {reviewCount <= 20 && ' (パフォーマンス要件: 2分以内)'}
+            予想生成時間: 約{Math.ceil(reviewCount * 0.8)}分 (最適化版)
+            {reviewCount <= 10 && ' (高速処理)'}
           </p>
         </div>
       </div>
