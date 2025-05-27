@@ -9,7 +9,9 @@ import {
   getGenerationBatches,
   updateBatchStatus,
   deleteGenerationBatch,
-  deleteBatchesBulk
+  deleteBatchesBulk,
+  deleteAllBatches,
+  getDatabaseStats
 } from '../../utils/database';
 
 /**
@@ -37,6 +39,17 @@ function generateCSV(reviews: any[]): string {
     // generationParametersから使用されたキーワードと推奨フレーズを取得
     const usedWords = review.generationParameters?.usedWords || '';
     const selectedRecommendation = review.generationParameters?.selectedRecommendation || '日本酒好きに';
+    
+    // デバッグログ：usedWordsが空の場合の詳細情報
+    if (!usedWords) {
+      console.log('⚠️ usedWordsが空です:', {
+        reviewId: review.id,
+        hasGenerationParameters: !!review.generationParameters,
+        generationParametersKeys: review.generationParameters ? Object.keys(review.generationParameters) : [],
+        usedWordsValue: review.generationParameters?.usedWords,
+        selectedElements: review.generationParameters?.selectedElements
+      });
+    }
     
     return [
       `"${(review.reviewText || '').replace(/"/g, '""')}"`, // ダブルクォートエスケープ
@@ -220,15 +233,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
         }
 
-        console.log('🗑️ バッチ削除:', deleteBatchId);
-
-        await deleteGenerationBatch(deleteBatchId);
-        
-        console.log('✅ バッチ削除完了');
-        return res.status(200).json({
-          success: true,
-          message: 'バッチを削除しました'
+        console.log('🗑️ 単一バッチ削除開始:', {
+          batchId: deleteBatchId,
+          timestamp: new Date().toISOString()
         });
+
+        try {
+          await deleteGenerationBatch(deleteBatchId);
+          
+          console.log('✅ 単一バッチ削除完了:', deleteBatchId);
+          return res.status(200).json({
+            success: true,
+            message: 'バッチを削除しました',
+            deletedBatchId: deleteBatchId
+          });
+        } catch (deleteError) {
+          console.error('❌ 単一バッチ削除エラー:', deleteError);
+          return res.status(500).json({
+            success: false,
+            error: 'バッチ削除に失敗しました',
+            details: deleteError instanceof Error ? deleteError.message : 'Unknown error',
+            batchId: deleteBatchId
+          });
+        }
 
       case 'delete-batches':
         // 複数バッチ一括削除
@@ -241,26 +268,99 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (!deleteBatchIds || !Array.isArray(deleteBatchIds) || deleteBatchIds.length === 0) {
           return res.status(400).json({ 
             error: 'batchIds配列は必須です',
-            details: { batchIds: !!deleteBatchIds, isArray: Array.isArray(deleteBatchIds) }
+            details: { 
+              batchIds: !!deleteBatchIds, 
+              isArray: Array.isArray(deleteBatchIds),
+              length: deleteBatchIds?.length || 0
+            }
           });
         }
 
-        console.log('🗑️ 一括バッチ削除:', deleteBatchIds);
+        console.log('🗑️ 一括バッチ削除開始:', {
+          batchIds: deleteBatchIds,
+          count: deleteBatchIds.length,
+          timestamp: new Date().toISOString()
+        });
 
-        const deleteResult = await deleteBatchesBulk(deleteBatchIds);
+        try {
+          const deleteResult = await deleteBatchesBulk(deleteBatchIds);
+          
+          console.log('✅ 一括バッチ削除完了:', deleteResult);
+          
+          if (deleteResult.failed > 0) {
+            return res.status(207).json({
+              success: true,
+              message: `${deleteResult.success}件のバッチを削除しました（${deleteResult.failed}件失敗）`,
+              result: deleteResult,
+              partialSuccess: true
+            });
+          } else {
+            return res.status(200).json({
+              success: true,
+              message: `${deleteResult.success}件のバッチを削除しました`,
+              result: deleteResult
+            });
+          }
+        } catch (bulkDeleteError) {
+          console.error('❌ 一括バッチ削除エラー:', bulkDeleteError);
+          return res.status(500).json({
+            success: false,
+            error: '一括バッチ削除に失敗しました',
+            details: bulkDeleteError instanceof Error ? bulkDeleteError.message : 'Unknown error',
+            batchIds: deleteBatchIds
+          });
+        }
+
+      case 'delete-all-batches':
+        // 全バッチ削除
+        if (req.method !== 'POST') {
+          return res.status(405).json({ error: 'Method not allowed for delete-all-batches' });
+        }
+
+        console.log('🗑️ 全バッチ削除開始:', {
+          timestamp: new Date().toISOString()
+        });
+
+        try {
+          const deleteResult = await deleteAllBatches();
+          
+          console.log('✅ 全バッチ削除完了:', deleteResult);
+          
+          return res.status(200).json({
+            success: true,
+            message: `${deleteResult.success}件のバッチを削除しました`,
+            result: deleteResult
+          });
+        } catch (deleteAllError) {
+          console.error('❌ 全バッチ削除エラー:', deleteAllError);
+          return res.status(500).json({
+            success: false,
+            error: '全バッチ削除に失敗しました',
+            details: deleteAllError instanceof Error ? deleteAllError.message : 'Unknown error',
+          });
+        }
+
+      case 'get-database-stats':
+        // データベース統計情報取得
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method not allowed for get-database-stats' });
+        }
+
+        console.log('📋 データベース統計情報取得開始');
+        const stats = await getDatabaseStats();
         
-        console.log('✅ 一括バッチ削除完了');
+        console.log(`✅ データベース統計情報取得完了: ${stats.length}件`);
         return res.status(200).json({
           success: true,
-          message: `${deleteResult.success}件のバッチを削除しました`,
-          result: deleteResult
+          stats: stats,
+          count: stats.length
         });
 
       default:
         console.log('❌ 不明なアクション:', action);
         return res.status(400).json({ 
           error: '不明なアクションです',
-          availableActions: ['list-batches', 'list-reviews', 'export-csv', 'batch-status', 'delete-batch', 'delete-batches']
+          availableActions: ['list-batches', 'list-reviews', 'export-csv', 'batch-status', 'delete-batch', 'delete-batches', 'delete-all-batches', 'get-database-stats']
         });
     }
 

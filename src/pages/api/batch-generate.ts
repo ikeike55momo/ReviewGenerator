@@ -14,13 +14,15 @@ import {
 } from '../../utils/database';
 
 /**
- * バッチ生成メイン処理
+ * バッチ生成メイン処理（グローバル重複管理対応）
  * @param {BatchGenerationRequest} request - バッチ生成リクエスト
  * @returns {Promise<string[]>} 作成されたバッチID一覧
  */
 async function processBatchGeneration(request: BatchGenerationRequest): Promise<string[]> {
   const { csvConfig, batchSize, batchCount, customPrompt, batchName } = request;
   const batchIds: string[] = [];
+  const allGeneratedTexts: string[] = []; // バッチ間重複防止用
+  const allUsedWordCombinations: string[] = []; // ワード組み合わせ重複防止用
   
   console.log(`🚀 バッチ生成開始: ${batchCount}バッチ × ${batchSize}件 = ${batchCount * batchSize}件`);
   
@@ -47,7 +49,7 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
       
       console.log(`📦 バッチ ${batchIndex + 1}/${batchCount} 作成完了: ${batchId}`);
       
-      // レビュー生成APIを呼び出し
+      // レビュー生成APIを呼び出し（バッチ間重複防止対応）
       const generateResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/generate-reviews`, {
         method: 'POST',
         headers: {
@@ -56,9 +58,11 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
         body: JSON.stringify({
           csvConfig,
           reviewCount: batchSize,
-          customPrompt,
+          customPrompt: customPrompt ? `${customPrompt}\n\n🎲 バッチ${batchIndex + 1}/${batchCount}: より多様性のある独創的なレビューを生成してください。異なるワード組み合わせを必ず使用してください。` : `🎲 バッチ${batchIndex + 1}/${batchCount}: 他のバッチとは完全に異なる独創的なレビューを生成してください。異なるワード組み合わせを必ず使用してください。`,
           batchName: currentBatchName,
-          saveToDB: true
+          saveToDB: true,
+          existingTexts: allGeneratedTexts, // バッチ間重複防止用
+          existingWordCombinations: allUsedWordCombinations // ワード組み合わせ重複防止用
         }),
       });
       
@@ -67,6 +71,17 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
       }
       
       const generatedReviews: GeneratedReview[] = await generateResponse.json();
+      
+      // 生成されたテキストとワード組み合わせを記録（次のバッチでの重複防止用）
+      for (const review of generatedReviews) {
+        if (review.reviewText && !allGeneratedTexts.includes(review.reviewText)) {
+          allGeneratedTexts.push(review.reviewText);
+        }
+        // ワード組み合わせも記録
+        if (review.generationParameters?.usedWords && !allUsedWordCombinations.includes(review.generationParameters.usedWords)) {
+          allUsedWordCombinations.push(review.generationParameters.usedWords);
+        }
+      }
       
       // バッチIDを各レビューに設定
       for (const review of generatedReviews) {
@@ -77,7 +92,7 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
       // バッチステータスを完了に更新
       await updateBatchStatus(batchId, 'completed', generatedReviews.length, 0);
       
-      console.log(`✅ バッチ ${batchIndex + 1}/${batchCount} 完了: ${generatedReviews.length}件生成`);
+      console.log(`✅ バッチ ${batchIndex + 1}/${batchCount} 完了: ${generatedReviews.length}件生成 (累計ユニーク: ${allGeneratedTexts.length}件)`);
       
       // API制限対策：バッチ間で少し待機
       if (batchIndex < batchCount - 1) {

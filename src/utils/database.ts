@@ -516,9 +516,11 @@ export const logQualityCheck = async (
  */
 export const getExistingReviews = async (limit: number = 1000): Promise<string[]> => {
   try {
-    const { data, error } = await supabase
+    console.log(`📚 既存レビュー取得開始 (制限: ${limit}件)`);
+    
+    const { data, error, count } = await supabase
       .from(TABLES.GENERATED_REVIEWS)
-      .select('review_text')
+      .select('review_text', { count: 'exact' })
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -526,6 +528,7 @@ export const getExistingReviews = async (limit: number = 1000): Promise<string[]
       throw new Error(`既存レビュー取得エラー: ${error.message}`);
     }
 
+    console.log(`✅ 既存レビュー取得完了: ${data.length}件 (総件数: ${count}件)`);
     return data.map(review => review.review_text);
   } catch (error) {
     console.error('既存レビュー取得エラー:', error);
@@ -542,47 +545,135 @@ export const deleteGenerationBatch = async (batchId: string): Promise<void> => {
   try {
     console.log(`🗑️ バッチ削除開始: ${batchId}`);
     
-    // 関連するレビューを先に削除
-    const { error: reviewsError } = await supabase
-      .from(TABLES.GENERATED_REVIEWS)
-      .delete()
-      .eq('generation_batch_id', batchId);
+    // 管理者権限クライアントを使用（権限問題を回避）
+    const client = supabaseAdmin || supabase;
+    console.log(`🔑 使用クライアント: ${supabaseAdmin ? 'Admin' : 'Standard'}`);
+    
+    // バッチの存在確認
+    const { data: batchExists, error: batchCheckError } = await client
+      .from(TABLES.GENERATION_BATCHES)
+      .select('id, batch_name, total_count, completed_count')
+      .eq('id', batchId)
+      .single();
 
-    if (reviewsError) {
-      throw new Error(`関連レビュー削除エラー: ${reviewsError.message}`);
+    if (batchCheckError) {
+      if (batchCheckError.code === 'PGRST116') {
+        console.warn(`⚠️ バッチが見つかりません: ${batchId}`);
+        return; // 既に削除済み
+      }
+      throw new Error(`バッチ存在確認エラー: ${batchCheckError.message} (Code: ${batchCheckError.code})`);
     }
 
-    // 関連する品質ログを削除（まず関連するレビューIDを取得）
-    const { data: reviewIds } = await supabase
+    console.log(`📋 削除対象バッチ確認:`, {
+      id: batchExists.id,
+      name: batchExists.batch_name,
+      totalCount: batchExists.total_count,
+      completedCount: batchExists.completed_count
+    });
+
+    // 関連するレビューIDを取得（削除前に）
+    const { data: reviewIds, error: reviewSelectError, count: reviewCount } = await client
       .from(TABLES.GENERATED_REVIEWS)
-      .select('id')
+      .select('id', { count: 'exact' })
       .eq('generation_batch_id', batchId);
 
-    if (reviewIds && reviewIds.length > 0) {
-      const { error: qualityLogsError } = await supabase
-        .from(TABLES.QUALITY_LOGS)
-        .delete()
-        .in('review_id', reviewIds.map(r => r.id));
+    if (reviewSelectError) {
+      console.warn(`レビューID取得警告: ${reviewSelectError.message}`);
+    }
 
-      // 品質ログの削除エラーは警告レベル
+    console.log(`📊 関連レビュー数: ${reviewCount || 0}件 (取得データ: ${reviewIds?.length || 0}件)`);
+
+    // 関連する品質ログを先に削除
+    if (reviewIds && reviewIds.length > 0) {
+      console.log(`🗑️ 品質ログ削除開始: ${reviewIds.length}件のレビューに関連`);
+      
+      const reviewIdList = reviewIds.map(r => r.id);
+      console.log(`📝 削除対象レビューID: ${reviewIdList.slice(0, 5).join(', ')}${reviewIdList.length > 5 ? '...' : ''}`);
+      
+      const { error: qualityLogsError, count: deletedLogsCount } = await client
+        .from(TABLES.QUALITY_LOGS)
+        .delete({ count: 'exact' })
+        .in('review_id', reviewIdList);
+
       if (qualityLogsError) {
-        console.warn(`品質ログ削除警告: ${qualityLogsError.message}`);
+        console.warn(`品質ログ削除警告: ${qualityLogsError.message} (Code: ${qualityLogsError.code})`);
+      } else {
+        console.log(`✅ 品質ログ削除完了: ${deletedLogsCount || 0}件`);
       }
     }
 
+    // 関連するレビューを削除
+    console.log(`🗑️ レビュー削除開始: バッチID ${batchId}`);
+    const { error: reviewsError, count: deletedReviewsCount } = await client
+      .from(TABLES.GENERATED_REVIEWS)
+      .delete({ count: 'exact' })
+      .eq('generation_batch_id', batchId);
+
+    if (reviewsError) {
+      throw new Error(`関連レビュー削除エラー: ${reviewsError.message} (Code: ${reviewsError.code})`);
+    }
+
+    console.log(`✅ レビュー削除完了: ${deletedReviewsCount || 0}件`);
+
     // バッチ自体を削除
-    const { error: batchError } = await supabase
+    console.log(`🗑️ バッチ削除開始: ${batchId}`);
+    const { error: batchError, count: deletedBatchCount } = await client
       .from(TABLES.GENERATION_BATCHES)
-      .delete()
+      .delete({ count: 'exact' })
       .eq('id', batchId);
 
     if (batchError) {
-      throw new Error(`バッチ削除エラー: ${batchError.message}`);
+      throw new Error(`バッチ削除エラー: ${batchError.message} (Code: ${batchError.code})`);
     }
 
-    console.log(`✅ バッチ削除完了: ${batchId}`);
+    if (deletedBatchCount === 0) {
+      console.warn(`⚠️ バッチが削除されませんでした: ${batchId}`);
+      
+      // 再度存在確認
+      const { data: stillExists } = await client
+        .from(TABLES.GENERATION_BATCHES)
+        .select('id')
+        .eq('id', batchId)
+        .single();
+        
+      if (stillExists) {
+        throw new Error(`バッチ削除に失敗: ${batchId} がまだ存在しています`);
+      }
+    } else {
+      console.log(`✅ バッチ削除完了: ${batchId} (削除件数: ${deletedBatchCount})`);
+    }
+
+    // 削除後の確認
+    const { data: verifyBatch, error: verifyError } = await client
+      .from(TABLES.GENERATION_BATCHES)
+      .select('id')
+      .eq('id', batchId)
+      .single();
+
+    if (verifyError && verifyError.code !== 'PGRST116') {
+      console.warn(`削除確認エラー: ${verifyError.message}`);
+    }
+
+    if (verifyBatch) {
+      throw new Error(`バッチ削除の確認に失敗: ${batchId} がまだ存在しています`);
+    }
+
+    console.log(`🎉 バッチ削除検証完了: ${batchId}`);
+    
+    // 最終的な統計情報
+    console.log(`📈 削除統計:`, {
+      batchId,
+      batchName: batchExists.batch_name,
+      deletedReviews: deletedReviewsCount || 0,
+      deletedBatch: deletedBatchCount || 0
+    });
+    
   } catch (error) {
-    console.error('バッチ削除エラー:', error);
+    console.error('❌ バッチ削除エラー:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 };
@@ -604,9 +695,11 @@ export const deleteBatchesBulk = async (batchIds: string[]): Promise<{
   };
 
   console.log(`🗑️ 一括バッチ削除開始: ${batchIds.length}件`);
+  console.log(`📝 削除対象バッチID: ${batchIds.join(', ')}`);
 
   for (const batchId of batchIds) {
     try {
+      console.log(`🔄 バッチ削除処理中: ${batchId} (${result.success + result.failed + 1}/${batchIds.length})`);
       await deleteGenerationBatch(batchId);
       result.success++;
       console.log(`✅ バッチ削除成功: ${batchId}`);
@@ -618,6 +711,102 @@ export const deleteBatchesBulk = async (batchIds: string[]): Promise<{
     }
   }
 
-  console.log(`🎉 一括バッチ削除完了: 成功${result.success}件, 失敗${result.failed}件`);
+  console.log(`🎉 一括バッチ削除完了:`, {
+    total: batchIds.length,
+    success: result.success,
+    failed: result.failed,
+    errors: result.errors
+  });
+  
   return result;
+};
+
+/**
+ * 全バッチを削除（管理者機能）
+ * @returns {Promise<{ success: number; failed: number; errors: string[] }>}
+ */
+export const deleteAllBatches = async (): Promise<{
+  success: number;
+  failed: number;
+  errors: string[];
+}> => {
+  try {
+    console.log('🗑️ 全バッチ削除開始');
+    
+    // 管理者権限クライアントを使用
+    const client = supabaseAdmin || supabase;
+    console.log(`🔑 使用クライアント: ${supabaseAdmin ? 'Admin' : 'Standard'}`);
+    
+    // 全バッチIDを取得
+    const { data: allBatches, error: fetchError } = await client
+      .from(TABLES.GENERATION_BATCHES)
+      .select('id, batch_name')
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      throw new Error(`全バッチ取得エラー: ${fetchError.message}`);
+    }
+
+    if (!allBatches || allBatches.length === 0) {
+      console.log('📭 削除対象のバッチがありません');
+      return { success: 0, failed: 0, errors: [] };
+    }
+
+    console.log(`📊 削除対象バッチ数: ${allBatches.length}件`);
+    
+    const batchIds = allBatches.map(batch => batch.id);
+    return await deleteBatchesBulk(batchIds);
+    
+  } catch (error) {
+    console.error('❌ 全バッチ削除エラー:', error);
+    return {
+      success: 0,
+      failed: 1,
+      errors: [error instanceof Error ? error.message : 'Unknown error']
+    };
+  }
+};
+
+/**
+ * データベース統計情報を取得
+ * @returns {Promise<any>} 統計情報
+ */
+export const getDatabaseStats = async (): Promise<any> => {
+  try {
+    const client = supabaseAdmin || supabase;
+    
+    // バッチ数
+    const { count: batchCount } = await client
+      .from(TABLES.GENERATION_BATCHES)
+      .select('*', { count: 'exact', head: true });
+
+    // レビュー数
+    const { count: reviewCount } = await client
+      .from(TABLES.GENERATED_REVIEWS)
+      .select('*', { count: 'exact', head: true });
+
+    // 品質ログ数
+    const { count: qualityLogCount } = await client
+      .from(TABLES.QUALITY_LOGS)
+      .select('*', { count: 'exact', head: true });
+
+    const stats = {
+      batches: batchCount || 0,
+      reviews: reviewCount || 0,
+      qualityLogs: qualityLogCount || 0,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('📊 データベース統計:', stats);
+    return stats;
+    
+  } catch (error) {
+    console.error('❌ 統計取得エラー:', error);
+    return {
+      batches: 0,
+      reviews: 0,
+      qualityLogs: 0,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
 }; 

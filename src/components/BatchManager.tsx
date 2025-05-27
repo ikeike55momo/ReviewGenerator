@@ -53,6 +53,7 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
   const [reviews, setReviews] = useState<GeneratedReview[]>([]);
   const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [dbStats, setDbStats] = useState<any>(null);
   
   // フィルタリング
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -73,6 +74,21 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
       console.error('バッチ一覧取得エラー:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  /**
+   * データベース統計情報を取得
+   */
+  const fetchDatabaseStats = async () => {
+    try {
+      const response = await fetch('/api/batch-history?action=get-database-stats');
+      if (response.ok) {
+        const data = await response.json();
+        setDbStats(data.stats);
+      }
+    } catch (error) {
+      console.error('統計情報取得エラー:', error);
     }
   };
 
@@ -155,6 +171,64 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
   };
 
   /**
+   * 全バッチを削除
+   */
+  const handleDeleteAllBatches = async () => {
+    const confirmMessage = `⚠️ 警告: 全てのバッチとレビューを削除しますか？\n\nこの操作は取り消せません。\n\n現在のデータ:\n- バッチ数: ${dbStats?.batches || '不明'}件\n- レビュー数: ${dbStats?.reviews || '不明'}件\n\n本当に削除しますか？`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    const doubleConfirm = confirm('最終確認: 本当に全てのデータを削除しますか？');
+    if (!doubleConfirm) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      console.log('🗑️ フロントエンド: 全削除開始');
+      
+      const response = await fetch('/api/batch-history?action=delete-all-batches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+
+      console.log('📡 全削除API応答:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      const data = await response.json();
+      console.log('📊 全削除結果データ:', data);
+
+      if (response.ok) {
+        alert(`${data.result.success}件のバッチを削除しました`);
+        
+        // 全てをクリア
+        setSelectedBatches([]);
+        setBatches([]);
+        setReviews([]);
+        
+        // 統計情報を更新
+        await fetchDatabaseStats();
+        
+        console.log('🎉 フロントエンド: 全削除処理完了');
+      } else {
+        throw new Error(data.error || '全バッチ削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('❌ フロントエンド: 全削除エラー:', error);
+      alert(`全削除エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
    * 選択されたバッチを削除
    */
   const handleDeleteSelectedBatches = async () => {
@@ -170,6 +244,7 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
 
     try {
       setIsLoading(true);
+      console.log('🗑️ フロントエンド: 一括削除開始', selectedBatches);
       
       const response = await fetch('/api/batch-history?action=delete-batches', {
         method: 'POST',
@@ -181,21 +256,41 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
         }),
       });
 
+      console.log('📡 削除API応答:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      const data = await response.json();
+      console.log('📊 削除結果データ:', data);
+
       if (response.ok) {
-        const data = await response.json();
-        alert(`${data.result.success}件のバッチを削除しました`);
+        if (data.partialSuccess) {
+          alert(`${data.result.success}件のバッチを削除しました（${data.result.failed}件失敗）\n\n失敗したバッチ:\n${data.result.errors.join('\n')}`);
+        } else {
+          alert(`${data.result.success}件のバッチを削除しました`);
+        }
         
         // 選択をクリア
         setSelectedBatches([]);
+        console.log('✅ 選択バッチクリア完了');
         
-        // バッチ一覧を更新
+        // バッチ一覧を強制更新
+        console.log('🔄 バッチ一覧更新開始');
         await fetchBatches();
+        console.log('✅ バッチ一覧更新完了');
+        
+        // レビュー一覧もクリア
+        setReviews([]);
+        console.log('✅ レビュー一覧クリア完了');
+        
+        console.log('🎉 フロントエンド: 一括削除処理完了');
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'バッチ削除に失敗しました');
+        throw new Error(data.error || 'バッチ削除に失敗しました');
       }
     } catch (error) {
-      console.error('バッチ削除エラー:', error);
+      console.error('❌ フロントエンド: バッチ削除エラー:', error);
       alert(`バッチ削除エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
@@ -213,6 +308,7 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
 
     try {
       setIsLoading(true);
+      console.log('🗑️ フロントエンド: 単一削除開始', { batchId, batchName });
       
       const response = await fetch('/api/batch-history?action=delete-batch', {
         method: 'POST',
@@ -224,20 +320,37 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
         }),
       });
 
+      console.log('📡 削除API応答:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      const data = await response.json();
+      console.log('📊 削除結果データ:', data);
+
       if (response.ok) {
         alert('バッチを削除しました');
         
         // 選択からも削除
         setSelectedBatches(prev => prev.filter(id => id !== batchId));
+        console.log('✅ 選択バッチから削除完了');
         
-        // バッチ一覧を更新
+        // バッチ一覧を強制更新
+        console.log('🔄 バッチ一覧更新開始');
         await fetchBatches();
+        console.log('✅ バッチ一覧更新完了');
+        
+        // レビュー一覧もクリア
+        setReviews([]);
+        console.log('✅ レビュー一覧クリア完了');
+        
+        console.log('🎉 フロントエンド: 単一削除処理完了');
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'バッチ削除に失敗しました');
+        throw new Error(data.error || 'バッチ削除に失敗しました');
       }
     } catch (error) {
-      console.error('バッチ削除エラー:', error);
+      console.error('❌ フロントエンド: バッチ削除エラー:', error);
       alert(`バッチ削除エラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsLoading(false);
@@ -290,6 +403,7 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
    */
   useEffect(() => {
     fetchBatches();
+    fetchDatabaseStats();
   }, []);
 
   /**
@@ -386,10 +500,43 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
    */
   const renderHistoryTab = () => (
     <div className="space-y-6">
+      {/* 統計情報 */}
+      {dbStats && (
+        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+          <h4 className="text-sm font-semibold text-blue-800 mb-2">📊 データベース統計</h4>
+          <div className="grid grid-cols-3 gap-4 text-sm">
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{dbStats.batches}</div>
+              <div className="text-blue-700">バッチ数</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{dbStats.reviews}</div>
+              <div className="text-blue-700">レビュー数</div>
+            </div>
+            <div className="text-center">
+              <div className="text-lg font-bold text-blue-600">{dbStats.qualityLogs}</div>
+              <div className="text-blue-700">品質ログ数</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-6 rounded-lg shadow">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">バッチ履歴</h3>
           <div className="flex space-x-2">
+            <button
+              onClick={handleDeleteAllBatches}
+              disabled={isLoading || !dbStats || dbStats.batches === 0}
+              className={`px-4 py-2 rounded-md font-medium ${
+                isLoading || !dbStats || dbStats.batches === 0
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-red-800 text-white hover:bg-red-900'
+              }`}
+              title="全てのバッチとレビューを削除"
+            >
+              🗑️ 全削除
+            </button>
             <button
               onClick={handleDeleteSelectedBatches}
               disabled={isLoading || selectedBatches.length === 0}
@@ -402,7 +549,10 @@ const BatchManager: React.FC<BatchManagerProps> = ({ csvConfig, customPrompt }) 
               🗑️ 選択削除 ({selectedBatches.length})
             </button>
             <button
-              onClick={fetchBatches}
+              onClick={() => {
+                fetchBatches();
+                fetchDatabaseStats();
+              }}
               disabled={isLoading}
               className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
             >
