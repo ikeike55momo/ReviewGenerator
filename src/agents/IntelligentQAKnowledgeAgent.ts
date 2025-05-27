@@ -8,6 +8,8 @@ import { Agent } from '@mastra/core';
 import { anthropic } from '@ai-sdk/anthropic';
 import { CSVConfig } from '../types/csv';
 import { GeneratedReview } from '../types/review';
+import { EnhancedQAProhibitionController } from './EnhancedQAProhibitionController';
+import type { EnhancedQAViolation, ProhibitionRule as EnhancedProhibitionRule } from './EnhancedQAProhibitionController';
 
 /**
  * QAナレッジ分析結果の型定義
@@ -68,6 +70,7 @@ export class IntelligentQAKnowledgeAgent extends Agent {
   private knowledgeBase: any[] = [];
   private commonPatterns: QAPattern[] = [];
   private learningHistory: any[] = [];
+  private enhancedProhibitionController: EnhancedQAProhibitionController;
 
   constructor() {
     super({
@@ -89,6 +92,9 @@ export class IntelligentQAKnowledgeAgent extends Agent {
       `,
       model: anthropic('claude-3-5-sonnet-20241022')
     });
+    
+    // 強化されたQA禁止事項制御システムを初期化
+    this.enhancedProhibitionController = new EnhancedQAProhibitionController();
   }
 
   /**
@@ -166,22 +172,42 @@ A${i+1}: ${qa.answer}
 
   /**
    * 🛡️ リアルタイム品質チェック（QAナレッジベース）
+   * 強化されたQA禁止事項制御システムを統合
    */
   async performQABasedQualityCheck(
     reviewText: string,
     qaKnowledge: any[]
   ): Promise<QualityCheckResult> {
     try {
-      // 1. 既存QAナレッジとの照合
+      // 1. 強化された違反検出システム
+      const enhancedViolations = await this.enhancedProhibitionController.detectViolations(reviewText, qaKnowledge);
+      
+      // 2. 従来の直接違反チェック
       const directViolations = this.checkDirectViolations(reviewText, qaKnowledge);
       
-      // 2. AI駆動の品質判定
+      // 3. AI駆動の品質判定
       const aiJudgement = await this.performAIQualityJudgement(reviewText, qaKnowledge);
       
-      // 3. パターンベースの予防的チェック
+      // 4. パターンベースの予防的チェック
       const patternViolations = this.checkPatternViolations(reviewText);
       
-      const allViolations = [...directViolations, ...patternViolations, ...aiJudgement.violations];
+      // 5. 強化された違反を従来形式に変換
+      const convertedEnhancedViolations = enhancedViolations.map(violation => ({
+        type: violation.type,
+        description: `${violation.description} (信頼度: ${Math.round(violation.confidence * 100)}%)`,
+        severity: violation.severity,
+        relatedQA: violation.relatedQA
+      }));
+      
+      const allViolations = [...convertedEnhancedViolations, ...directViolations, ...patternViolations, ...aiJudgement.violations];
+      
+      console.log('🛡️ 強化されたQA品質チェック完了:', {
+        強化された違反: enhancedViolations.length,
+        直接違反: directViolations.length,
+        パターン違反: patternViolations.length,
+        AI判定違反: aiJudgement.violations?.length || 0,
+        総違反数: allViolations.length
+      });
       
       return {
         passed: allViolations.length === 0,
@@ -202,6 +228,40 @@ A${i+1}: ${qa.answer}
         preventiveGuidance: 'システムの安定性を確認してください'
       };
     }
+  }
+
+  /**
+   * 🔧 強化されたQA禁止事項制御システムの初期化
+   */
+  async initializeEnhancedProhibitionSystem(qaKnowledge: any[]): Promise<void> {
+    try {
+      console.log('🔧 強化されたQA禁止事項制御システム初期化開始...');
+      
+      // 禁止ルールの動的生成
+      const prohibitionRules = this.enhancedProhibitionController.generateProhibitionRules(qaKnowledge);
+      
+      // 階層的ルール管理
+      const hierarchicalRules = this.enhancedProhibitionController.createHierarchicalRules(qaKnowledge);
+      
+      console.log('✅ 強化されたQA禁止事項制御システム初期化完了:', {
+        総ルール数: prohibitionRules.length,
+        階層別ルール: {
+          致命的: hierarchicalRules.critical.length,
+          高: hierarchicalRules.high.length,
+          中: hierarchicalRules.medium.length,
+          低: hierarchicalRules.low.length
+        }
+      });
+    } catch (error) {
+      console.error('❌ 強化されたQA禁止事項制御システム初期化エラー:', error);
+    }
+  }
+
+  /**
+   * 📊 強化されたQA禁止事項制御システムの統計取得
+   */
+  getEnhancedProhibitionStatistics(): any {
+    return this.enhancedProhibitionController.getStatistics();
   }
 
   /**

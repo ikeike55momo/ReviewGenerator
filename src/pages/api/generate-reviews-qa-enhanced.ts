@@ -9,6 +9,7 @@ import { GeneratedReview } from '../../types/review';
 import { QAIntegrationHelper, SimpleQAIntegration } from '../../utils/qa-integration-helper';
 import { IntelligentQAKnowledgeAgent } from '../../agents/IntelligentQAKnowledgeAgent';
 import { IntegratedQualityManager } from '../../agents/IntegratedQualityManager';
+import { EnhancedQAProhibitionController } from '../../agents/EnhancedQAProhibitionController';
 
 export const config = {
   maxDuration: 300, // 5分
@@ -180,15 +181,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // QAナレッジエージェントの初期化
     const qaAgent = new IntelligentQAKnowledgeAgent();
     const qualityManager = new IntegratedQualityManager();
+    const enhancedProhibitionController = new EnhancedQAProhibitionController();
     
     // QAナレッジ分析（事前分析）
     let qaAnalysis: any = null;
     if (enableQAEnhancement && csvConfig.qaKnowledge && csvConfig.qaKnowledge.length > 0) {
       console.log('🔍 QAナレッジ事前分析開始...');
+      
+      // 1. 従来のQAナレッジ分析
       qaAnalysis = await qaAgent.analyzeQAKnowledge(csvConfig.qaKnowledge);
+      
+      // 2. 強化されたQA禁止事項制御システム初期化
+      await qaAgent.initializeEnhancedProhibitionSystem(csvConfig.qaKnowledge);
+      
+      // 3. 強化された禁止ルール生成
+      const prohibitionRules = enhancedProhibitionController.generateProhibitionRules(csvConfig.qaKnowledge);
+      
       console.log('✅ QAナレッジ事前分析完了:', {
         パターン数: qaAnalysis.commonPatterns.length,
-        ルール数: qaAnalysis.prohibitionRules.length
+        ルール数: qaAnalysis.prohibitionRules.length,
+        強化された禁止ルール数: prohibitionRules.length
       });
     }
 
