@@ -7,16 +7,39 @@
  * - 環境変数から接続情報を取得
  * 
  * 実行方法:
- * node scripts/setup-database.js
+ * 1. .envファイルに環境変数を設定
+ * 2. npm install dotenv (未インストールの場合)
+ * 3. node scripts/setup-database.js
+ * 
+ * 必要な環境変数:
+ * - NEXT_PUBLIC_SUPABASE_URL: SupabaseプロジェクトURL
+ * - SUPABASE_SERVICE_ROLE_KEY: Supabaseサービスロールキー
  */
 
 const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-// 環境変数設定（手動設定）
-const SUPABASE_URL = 'https://vtozksgtcaixghqkndyt.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ0b3prc2d0Y2FpeGdocWtuZHl0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNTcyMTk3NCwiZXhwIjoyMDUxMjk3OTc0fQ.Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8Ej8';
+// 環境変数から設定を取得
+require('dotenv').config();
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// 環境変数バリデーション
+if (!SUPABASE_URL) {
+  console.error('❌ エラー: NEXT_PUBLIC_SUPABASE_URL環境変数が設定されていません');
+  process.exit(1);
+}
+
+if (!SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('❌ エラー: SUPABASE_SERVICE_ROLE_KEY環境変数が設定されていません');
+  process.exit(1);
+}
+
+console.log('✓ 環境変数読み込み成功');
+console.log(`  - Supabase URL: ${SUPABASE_URL}`);
+console.log(`  - Service Role Key: ${SUPABASE_SERVICE_ROLE_KEY.substring(0, 20)}...`);
 
 // Supabaseクライアント作成（サービスロールキー使用）
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
