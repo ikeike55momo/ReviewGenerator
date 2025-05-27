@@ -177,9 +177,9 @@ function calculateDiversityScore(reviewText: string, existingReviews: GeneratedR
   const existingWords = existingReviews
     .map(r => r.reviewText)
     .join(' ')
-    .match(/[ぁ-んァ-ヶー一-龠]+/g) || [];
+    .match(/[ぁ-んァ-ヶー一-龠]+/g) || [] as string[];
   
-  const uniqueWords = currentWords.filter(word => 
+  const uniqueWords = currentWords.filter((word: string) => 
     word.length > 1 && !existingWords.includes(word)
   );
   

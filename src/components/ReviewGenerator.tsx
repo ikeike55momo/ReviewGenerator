@@ -196,6 +196,60 @@ OK例：「楽しめました」「体験できました」「満足できる内
           <h3 className="text-sm font-medium text-yellow-800 mb-3">🧪 Netlify環境診断</h3>
           
           <div className="space-y-2">
+            {/* QA強化版テストボタン */}
+            <button
+              onClick={async () => {
+                try {
+                  console.log('🧠 QA強化版テスト開始...');
+                  const response = await fetch('/api/generate-reviews-qa-enhanced', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      csvConfig: {
+                        basicRules: [
+                          { category: 'required_elements', type: 'area', content: '池袋西口' },
+                          { category: 'required_elements', type: 'business_type', content: 'SHOGUN BAR' },
+                          { category: 'required_elements', type: 'usp', content: '日本酒' }
+                        ],
+                        humanPatterns: [
+                          { age_group: '20代', personality_type: 'フレンドリー' },
+                          { age_group: '30代', personality_type: '落ち着いた' }
+                        ],
+                        qaKnowledge: [
+                          {
+                            question: "曖昧な表現を避けるには？",
+                            answer: "具体的な体験や数値を含める",
+                            category: "表現問題",
+                            priority: "High",
+                            example_before: "とても良かった",
+                            example_after: "スタッフの対応が丁寧で、料理も熱々で美味しかった"
+                          }
+                        ]
+                      },
+                      reviewCount: 3,
+                      enableQAEnhancement: true,
+                      qualityThreshold: 0.7
+                    })
+                  });
+                  
+                  const result = await response.json();
+                  console.log('🧠 QA強化版テスト結果:', result);
+                  
+                  if (result.success) {
+                    alert(`🧠 QA強化版テスト成功！\n生成件数: ${result.count}件\n平均品質: ${result.statistics.averageQuality.toFixed(2)}\n承認件数: ${result.statistics.approvedCount}件`);
+                  } else {
+                    alert(`❌ QA強化版テスト失敗: ${result.error}`);
+                  }
+                } catch (error) {
+                  console.error('QA強化版テストエラー:', error);
+                  alert(`❌ QA強化版テストエラー: ${error}`);
+                }
+              }}
+              className="w-full px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50"
+              disabled={isGenerating}
+            >
+              🧠 QA強化版テスト（3件）
+            </button>
             <button
               onClick={async () => {
                 try {
