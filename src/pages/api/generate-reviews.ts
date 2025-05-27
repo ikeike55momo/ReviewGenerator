@@ -259,7 +259,7 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
     };
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45秒タイムアウト（個別API呼び出し用）
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -354,7 +354,7 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
     
     // AbortError（タイムアウト）の特別処理
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('Claude APIリクエストがタイムアウトしました（30秒）');
+      throw new Error('Claude APIリクエストがタイムアウトしました（45秒）');
     }
     
     throw new Error(`Claude APIリクエストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -814,7 +814,7 @@ function calculateQualityScore(
 
 // Netlify Functions用のタイムアウト設定
 export const config = {
-  maxDuration: 60, // 60秒のタイムアウト
+  maxDuration: 300, // 5分（300秒）のタイムアウト - 複数レビュー生成に対応
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -1029,9 +1029,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             console.log(`⚠️ 完全一致重複検出 - 再生成します (試行${attempts}回目)`);
           }
           
-          // 再試行の場合は少し待機
+          // 再試行の場合は短縮された待機時間
           if (attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 2秒→1秒に短縮
           }
         }
         
@@ -1117,9 +1117,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         console.log(`✅ レビュー ${i + 1}/${reviewCount} AI創作完了 (スコア: ${qualityScore}, 文字数: ${reviewText.length})`);
         
-        // API制限対策：少し待機
+        // API制限対策：短縮された待機時間（処理速度向上）
         if (i < reviewCount - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500)); // 1秒→0.5秒に短縮
         }
         
       } catch (error) {
