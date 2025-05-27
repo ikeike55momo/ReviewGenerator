@@ -258,6 +258,9 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
       ]
     };
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒タイムアウト
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -265,8 +268,11 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errorData = await response.text();
@@ -345,6 +351,12 @@ async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
     }
   } catch (error) {
     console.error('Claude API Request Error:', error);
+    
+    // AbortError（タイムアウト）の特別処理
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Claude APIリクエストがタイムアウトしました（30秒）');
+    }
+    
     throw new Error(`Claude APIリクエストエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
@@ -799,6 +811,11 @@ function calculateQualityScore(
 
   return Math.max(0, Math.min(10, score));
 }
+
+// Netlify Functions用のタイムアウト設定
+export const config = {
+  maxDuration: 60, // 60秒のタイムアウト
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('🔥 API /generate-reviews 呼び出し開始:', {

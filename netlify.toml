@@ -15,10 +15,4 @@
 
 # Next.js用のプラグイン設定
 [[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-# SPA用のフォールバック（Next.jsの動的ルーティング対応）
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200 
+  package = "@netlify/plugin-nextjs" 
