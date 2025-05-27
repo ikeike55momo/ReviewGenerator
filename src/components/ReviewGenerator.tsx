@@ -191,6 +191,42 @@ OK例：「楽しめました」「体験できました」「満足できる内
           </div>
         </div>
 
+        {/* テストボタン（診断用） */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">🧪 Netlify環境診断</h3>
+          <button
+            onClick={async () => {
+              try {
+                console.log('🧪 テストAPI呼び出し開始');
+                const response = await fetch('/api/test-simple', {
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                const result = await response.json();
+                console.log('🧪 テストAPI結果:', result);
+                
+                if (response.ok) {
+                  alert(`✅ テスト成功!\n\nNode.js: ${result.environment.nodeVersion}\nプラットフォーム: ${result.environment.platform}\nAnthropic API Key: ${result.environment.hasAnthropicKey ? '設定済み' : '未設定'}\n\nfetchテスト: ${result.fetchTest.status === 200 ? '成功' : '失敗'}`);
+                } else {
+                  alert(`❌ テスト失敗: ${result.error?.message || 'Unknown error'}`);
+                }
+              } catch (error) {
+                console.error('🧪 テストAPI呼び出しエラー:', error);
+                alert(`❌ テストAPI呼び出しエラー: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }}
+            className="px-4 py-2 bg-yellow-600 text-white rounded text-sm hover:bg-yellow-700"
+          >
+            環境テスト実行
+          </button>
+          <p className="text-xs text-yellow-700 mt-1">
+            Netlify環境でのNext.js APIルートの動作確認
+          </p>
+        </div>
+
         {/* 生成ボタン */}
         <div className="flex justify-center">
           <button

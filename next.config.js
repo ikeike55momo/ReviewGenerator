@@ -7,7 +7,8 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Next.js 13+では target は不要（自動でserverless）
+  // Netlify最適化設定
+  target: 'serverless', // Netlify Functions用
   
   // TypeScript設定
   typescript: {
@@ -24,11 +25,18 @@ const nextConfig = {
   // 環境変数設定
   env: {
     CUSTOM_KEY: process.env.CUSTOM_KEY,
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
   },
 
   // 画像最適化（Netlifyでは無効化）
   images: {
     unoptimized: true,
+  },
+
+  // 実験的機能（Netlify対応）
+  experimental: {
+    // API Routes最適化
+    serverComponentsExternalPackages: ['@anthropic-ai/sdk'],
   },
 
   // 出力設定（Netlify対応）

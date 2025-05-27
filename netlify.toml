@@ -1,5 +1,5 @@
 # Netlify configuration file
-# Next.js APIルート使用
+# Next.js 14 APIルート使用（最適化版）
 [build]
   command = "npm install && npm run build"
   publish = ".next"
@@ -8,11 +8,25 @@
   NODE_VERSION = "20"
   NPM_FLAGS = "--legacy-peer-deps"
   TYPESCRIPT_ENABLED = "true"
+  NEXT_TELEMETRY_DISABLED = "1"
 
 [dev]
   command = "npm run dev"
   port = 3000
 
-# Next.js用のプラグイン設定
+# Next.js用のプラグイン設定（最新版）
 [[plugins]]
-  package = "@netlify/plugin-nextjs" 
+  package = "@netlify/plugin-nextjs"
+
+# APIルート用の関数設定
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@anthropic-ai/sdk"]
+
+# ヘッダー設定（CORS対応）
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type" 
