@@ -33,9 +33,13 @@ export class ReviewGeneratorAgent extends Agent {
       const textBlock = response.content.find(block => block.type === 'text');
       const text = textBlock && 'text' in textBlock ? textBlock.text : '';
       return {
-        text,
-        score: 0, // Will be set by QualityControllerAgent
-        metadata: request
+        reviewText: text,
+        rating: 5, // デフォルト値
+        reviewerAge: 25, // デフォルト値
+        reviewerGender: 'other', // デフォルト値
+        qualityScore: 0, // Will be set by QualityControllerAgent
+        csvFileIds: [],
+        generationPrompt: prompt
       };
     } catch (error) {
       if (error instanceof Error) {
