@@ -1091,8 +1091,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let existingReviews: string[] = [];
     if (saveToDB) {
       try {
-        const { getExistingReviews } = await import('../../utils/database');
-        existingReviews = await getExistingReviews();
+        const { getExistingReviewsPaginated } = await import('../../utils/database');
+        const result = await getExistingReviewsPaginated({ page: 1, limit: 100 });
+        existingReviews = result.reviews;
         console.log(`📚 既存レビュー取得: ${existingReviews.length}件`);
       } catch (error) {
         console.warn('⚠️ 既存レビュー取得エラー:', error);
