@@ -19,8 +19,8 @@
  * 生成パラメータ型定義
  */
 export interface GenerationParameters {
-    temperature: number;
-    maxTokens: number;
+    temperature?: number;
+    maxTokens?: number;
     topP?: number;
     frequencyPenalty?: number;
     presencePenalty?: number;
@@ -34,6 +34,16 @@ export interface GenerationParameters {
     customPrompt?: string;
     usedWords?: string;
     selectedRecommendation?: string;
+    mode?: string; // API エンドポイントの動作モード
+    timestamp?: string; // 生成時刻
+    
+    // API特有のパラメータ
+    selectedAge?: string;
+    selectedPersonality?: string;
+    selectedArea?: string;
+    selectedBusinessType?: string;
+    selectedUSP?: string;
+    index?: number;
     
     // 品質管理用パラメータ
     qualityBreakdown?: {
