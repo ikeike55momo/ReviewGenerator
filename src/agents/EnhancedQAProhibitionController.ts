@@ -39,6 +39,8 @@ interface ProhibitionRule {
 class EnhancedQAProhibitionController {
   private prohibitionRules: ProhibitionRule[] = [];
   private semanticCache: Map<string, number> = new Map();
+  private readonly MAX_CACHE_SIZE = 1000; // キャッシュサイズ制限
+  private cacheAccessOrder: string[] = []; // LRU実装用
 
   constructor() {
     console.log('🛡️ 強化されたQA禁止事項制御システム初期化');
@@ -404,24 +406,71 @@ class EnhancedQAProhibitionController {
   }
 
   /**
-   * セマンティック類似度計算（キャッシュ付き）
+   * セマンティック類似度計算（LRUキャッシュ付き）
    */
   private async calculateSemanticSimilarity(text1: string, text2: string): Promise<number> {
-    // キャッシュチェック
+    // キャッシュキー生成
     const key = `${text1.substring(0, 50)}_${text2.substring(0, 50)}`;
+    
+    // キャッシュヒット時の処理
     if (this.semanticCache.has(key)) {
+      // LRU: アクセス順序を更新
+      this.updateCacheAccessOrder(key);
       return this.semanticCache.get(key)!;
     }
 
     try {
       // 簡易的な類似度計算（実際の実装ではベクトル化や機械学習モデルを使用）
       const similarity = this.calculateJaccardSimilarity(text1, text2);
-      this.semanticCache.set(key, similarity);
+      
+      // キャッシュに追加（LRU管理付き）
+      this.addToCache(key, similarity);
+      
       return similarity;
     } catch (error) {
       console.error('❌ セマンティック類似度計算エラー:', error);
       return 0;
     }
+  }
+
+  /**
+   * LRUキャッシュにアイテムを追加
+   */
+  private addToCache(key: string, value: number): void {
+    // キャッシュサイズ制限チェック
+    if (this.semanticCache.size >= this.MAX_CACHE_SIZE) {
+      // 最も古いアイテムを削除（LRU）
+      const oldestKey = this.cacheAccessOrder.shift();
+      if (oldestKey) {
+        this.semanticCache.delete(oldestKey);
+      }
+    }
+
+    // 新しいアイテムを追加
+    this.semanticCache.set(key, value);
+    this.cacheAccessOrder.push(key);
+  }
+
+  /**
+   * キャッシュアクセス順序を更新（LRU）
+   */
+  private updateCacheAccessOrder(key: string): void {
+    // 既存のエントリを削除
+    const index = this.cacheAccessOrder.indexOf(key);
+    if (index > -1) {
+      this.cacheAccessOrder.splice(index, 1);
+    }
+    
+    // 最新として追加
+    this.cacheAccessOrder.push(key);
+  }
+
+  /**
+   * キャッシュをクリア
+   */
+  private clearCache(): void {
+    this.semanticCache.clear();
+    this.cacheAccessOrder = [];
   }
 
   /**
