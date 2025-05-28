@@ -67,10 +67,10 @@ export class CSVParserAgent extends Agent {
         skip_records_with_error: false, // エラー行をスキップしない（デバッグのため）
       };
 
-      const basicRules = parse(files.basicRules, parseOptions);
-      const humanPatterns = parse(files.humanPatterns, parseOptions);
-      const qaKnowledge = parse(files.qaKnowledge, parseOptions);
-      const successExamples = parse(files.successExamples, parseOptions);
+      const basicRules = parse(files.basicRules, parseOptions) as Array<Record<string, string>>;
+      const humanPatterns = parse(files.humanPatterns, parseOptions) as Array<Record<string, string>>;
+      const qaKnowledge = parse(files.qaKnowledge, parseOptions) as Array<Record<string, string>>;
+      const successExamples = parse(files.successExamples, parseOptions) as Array<Record<string, string>>;
 
       // Validate headers for each CSV file
       if (basicRules.length > 0) {
