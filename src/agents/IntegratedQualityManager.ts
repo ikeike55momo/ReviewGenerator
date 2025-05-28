@@ -108,7 +108,7 @@ export class IntegratedQualityManager extends Agent {
             qaKnowledge: qaQuality,
             overall: overallQuality
           }
-        }
+        } as GenerationParameters
       };
 
       // 品質履歴に記録
