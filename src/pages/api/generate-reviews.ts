@@ -1309,7 +1309,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const reviewerGender: 'male' | 'female' | 'other' = 
           genderRandom > 0.6 ? 'male' : genderRandom > 0.3 ? 'female' : 'other';
         
-        // 使用されたキーワードをバーティカルライン区切りで結合
+        // 使用されたキーワードを配列として構築
         const selectedSubs = finalPromptResult.selectedSubs || [];
         const usedWords = [
           finalPromptResult.selectedArea,
@@ -1317,7 +1317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ...finalPromptResult.selectedUSPs,
           finalPromptResult.selectedEnvironment,
           ...selectedSubs
-        ].filter(word => word && word.trim() !== '').join('|');
+        ].filter(word => word && word.trim() !== '');
         
         // デバッグログ：usedWords生成の詳細
         console.log(`🔍 usedWords生成 (レビュー ${i + 1}):`, {
@@ -1342,7 +1342,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             selectedElements: selectedElements,
             targetLength: finalPromptResult.targetLength,
             customPrompt: customPrompt,
-            usedWords: usedWords, // 使用されたキーワード（バーティカルライン区切り）
+            usedWords: usedWords, // 使用されたキーワード（配列）
             selectedRecommendation: finalPromptResult.selectedRecommendation // 使用された推奨フレーズ
           },
           csvFileIds: [], // 後で実装
