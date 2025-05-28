@@ -1,0 +1,89 @@
+{
+  "api": {
+    "claude": {
+      "model": "claude-3-5-sonnet-20241022",
+      "maxTokens": 1000,
+      "temperature": 0.9,
+      "timeoutMs": 45000,
+      "retryAttempts": 2,
+      "rateLimitPerSecond": 5
+    },
+    "endpoints": {
+      "baseUrl": "https://api.anthropic.com",
+      "version": "v1",
+      "timeout": 30000
+    }
+  },
+  "quality": {
+    "thresholds": {
+      "minimumScore": 6,
+      "criticalViolationLimit": 0,
+      "highViolationLimit": 2,
+      "confidenceThreshold": 0.7
+    },
+    "checks": {
+      "enableSemanticAnalysis": true,
+      "enablePatternMatching": true,
+      "enableContextualAnalysis": false,
+      "maxViolationsToReport": 10
+    },
+    "rules": {
+      "dynamicRuleGeneration": true,
+      "ruleExpirationDays": 30,
+      "autoUpdateFromFeedback": false
+    }
+  },
+  "processing": {
+    "batch": {
+      "defaultConcurrency": 2,
+      "maxConcurrency": 5,
+      "chunkSize": 10,
+      "retryAttempts": 2,
+      "backoffMultiplier": 2
+    },
+    "generation": {
+      "defaultReviewCount": 10,
+      "maxReviewCount": 100,
+      "diversityBoostEnabled": true,
+      "qualityMonitoringEnabled": true
+    },
+    "storage": {
+      "enableDatabaseStorage": true,
+      "cleanupIntervalHours": 24,
+      "retentionDays": 90
+    }
+  },
+  "monitoring": {
+    "logging": {
+      "level": "info",
+      "enableStructuredLogging": true,
+      "logToFile": false
+    },
+    "metrics": {
+      "enableMetrics": false,
+      "metricsPort": 9090,
+      "healthCheckEnabled": true
+    },
+    "alerts": {
+      "enableAlerts": false,
+      "errorThreshold": 10,
+      "qualityDegradationThreshold": 0.5
+    }
+  },
+  "security": {
+    "apiKeys": {
+      "rotationIntervalDays": 90,
+      "keyValidationEnabled": true
+    },
+    "rateLimit": {
+      "windowSizeMinutes": 15,
+      "maxRequestsPerWindow": 100,
+      "enableIPBasedLimiting": false
+    },
+    "validation": {
+      "strictInputValidation": true,
+      "sanitizeOutput": true,
+      "maxInputLength": 10000
+    }
+  }
+}

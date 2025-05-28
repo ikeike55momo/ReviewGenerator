@@ -13,6 +13,7 @@
  */
 
 import { ReviewRequest, GenerationParameters, CSVConfig, UploadedFile, BatchGenerationRequest } from '../types/review';
+import { CSVConfig as CSVDataConfig } from '../types/csv';
 
 /**
  * バリデーション結果型
@@ -366,5 +367,137 @@ export function mergeValidationResults(...results: ValidationResult[]): Validati
         isValid: allErrors.length === 0,
         errors: allErrors,
         warnings: allWarnings.length > 0 ? allWarnings : undefined
+    };
+}
+
+/**
+ * CSV データ設定のバリデーション（csv.ts型定義用）
+ * 実際のCSVデータ構造（basicRules, humanPatterns, qaKnowledge, successExamples）をバリデーション
+ */
+export function validateCSVDataConfig(config: CSVDataConfig): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    try {
+        // basicRules の検証
+        if (!config.basicRules || !Array.isArray(config.basicRules)) {
+            errors.push('basicRules must be an array');
+        } else {
+            if (config.basicRules.length === 0) {
+                warnings.push('basicRules array is empty');
+            }
+            
+            config.basicRules.forEach((rule, index) => {
+                if (!rule.category || typeof rule.category !== 'string') {
+                    errors.push(`basicRules[${index}]: category is required and must be a string`);
+                }
+                if (!rule.type || typeof rule.type !== 'string') {
+                    errors.push(`basicRules[${index}]: type is required and must be a string`);
+                }
+                if (!rule.content || typeof rule.content !== 'string') {
+                    errors.push(`basicRules[${index}]: content is required and must be a string`);
+                }
+            });
+        }
+
+        // humanPatterns の検証
+        if (!config.humanPatterns || !Array.isArray(config.humanPatterns)) {
+            errors.push('humanPatterns must be an array');
+        } else {
+            if (config.humanPatterns.length === 0) {
+                warnings.push('humanPatterns array is empty');
+            }
+            
+            config.humanPatterns.forEach((pattern, index) => {
+                if (!pattern.age_group || typeof pattern.age_group !== 'string') {
+                    errors.push(`humanPatterns[${index}]: age_group is required and must be a string`);
+                }
+                if (!pattern.personality_type || typeof pattern.personality_type !== 'string') {
+                    errors.push(`humanPatterns[${index}]: personality_type is required and must be a string`);
+                }
+                if (!pattern.vocabulary || typeof pattern.vocabulary !== 'string') {
+                    errors.push(`humanPatterns[${index}]: vocabulary is required and must be a string`);
+                }
+                if (!pattern.exclamation_marks || typeof pattern.exclamation_marks !== 'string') {
+                    errors.push(`humanPatterns[${index}]: exclamation_marks is required and must be a string`);
+                }
+                if (!pattern.characteristics || typeof pattern.characteristics !== 'string') {
+                    errors.push(`humanPatterns[${index}]: characteristics is required and must be a string`);
+                }
+                if (!pattern.example || typeof pattern.example !== 'string') {
+                    errors.push(`humanPatterns[${index}]: example is required and must be a string`);
+                }
+            });
+        }
+
+        // qaKnowledge の検証
+        if (!config.qaKnowledge || !Array.isArray(config.qaKnowledge)) {
+            errors.push('qaKnowledge must be an array');
+        } else {
+            if (config.qaKnowledge.length === 0) {
+                warnings.push('qaKnowledge array is empty');
+            }
+            
+            config.qaKnowledge.forEach((qa, index) => {
+                if (!qa.question || typeof qa.question !== 'string') {
+                    errors.push(`qaKnowledge[${index}]: question is required and must be a string`);
+                }
+                if (!qa.answer || typeof qa.answer !== 'string') {
+                    errors.push(`qaKnowledge[${index}]: answer is required and must be a string`);
+                }
+                if (!qa.category || typeof qa.category !== 'string') {
+                    errors.push(`qaKnowledge[${index}]: category is required and must be a string`);
+                }
+                if (!qa.priority || typeof qa.priority !== 'string') {
+                    errors.push(`qaKnowledge[${index}]: priority is required and must be a string`);
+                }
+            });
+        }
+
+        // successExamples の検証
+        if (!config.successExamples || !Array.isArray(config.successExamples)) {
+            errors.push('successExamples must be an array');
+        } else {
+            if (config.successExamples.length === 0) {
+                warnings.push('successExamples array is empty');
+            }
+            
+            config.successExamples.forEach((example, index) => {
+                if (!example.review || typeof example.review !== 'string') {
+                    errors.push(`successExamples[${index}]: review is required and must be a string`);
+                }
+                if (!example.age || typeof example.age !== 'string') {
+                    errors.push(`successExamples[${index}]: age is required and must be a string`);
+                }
+                if (!example.gender || typeof example.gender !== 'string') {
+                    errors.push(`successExamples[${index}]: gender is required and must be a string`);
+                }
+                if (!example.companion || typeof example.companion !== 'string') {
+                    errors.push(`successExamples[${index}]: companion is required and must be a string`);
+                }
+            });
+        }
+
+        // データ整合性チェック
+        if (config.basicRules && config.humanPatterns) {
+            const requiredCategories = ['required_elements', 'recommendation_phrases'];
+            const allCategories = config.basicRules.map(rule => rule.category);
+            const foundCategories = allCategories.filter((category, index) => allCategories.indexOf(category) === index);
+            
+            requiredCategories.forEach(category => {
+                if (!foundCategories.includes(category)) {
+                    warnings.push(`Missing recommended category in basicRules: ${category}`);
+                }
+            });
+        }
+
+    } catch (error) {
+        errors.push(`CSV data validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return {
+        isValid: errors.length === 0,
+        errors,
+        warnings: warnings.length > 0 ? warnings : undefined
     };
 }

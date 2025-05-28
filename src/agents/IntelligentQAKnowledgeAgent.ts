@@ -750,13 +750,13 @@ ${newIssues.map((issue, i) => `
    */
   private extractPartialJSONInfo(partialJson: string, type: 'judgement' | 'update'): any {
     try {
-      // 1. 基本的な情報を抽出するパターン
+      // 1. 基本的な情報を抽出するパターン（ES2017互換）
       const patterns = {
         overallQuality: /"overallQuality"\s*:\s*"([^"]+)"/,
-        violations: /"violations"\s*:\s*\[(.*?)\]/s,
+        violations: /"violations"\s*:\s*\[([\s\S]*?)\]/,
         preventiveGuidance: /"preventiveGuidance"\s*:\s*"([^"]*)/,
-        newQAEntries: /"newQAEntries"\s*:\s*\[(.*?)\]/s,
-        updateSuggestions: /"updateSuggestions"\s*:\s*\[(.*?)\]/s
+        newQAEntries: /"newQAEntries"\s*:\s*\[([\s\S]*?)\]/,
+        updateSuggestions: /"updateSuggestions"\s*:\s*\[([\s\S]*?)\]/
       };
 
       if (type === 'judgement') {

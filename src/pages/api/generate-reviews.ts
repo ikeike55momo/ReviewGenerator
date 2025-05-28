@@ -4,7 +4,7 @@
  * CSV駆動型AI創作システム - バッチ管理・履歴保存対応
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { CSVConfig } from '../../types/csv';
+import { CSVConfig, BasicRule } from '../../types/csv';
 import { GeneratedReview } from '../../types/review';
 import { 
   createGenerationBatch, 
@@ -12,6 +12,8 @@ import {
   saveGeneratedReview,
   logQualityCheck 
 } from '../../utils/database';
+import { loadDefaultCSVConfig, validateCSVConfig } from '../../utils/csv-loader';
+import { validateCSVDataConfig } from '../../utils/validators';
 // import https from 'https'; // Netlify Functionsでは使用しない
 
 interface GenerateReviewsRequest {
@@ -1039,7 +1041,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('📥 リクエストボディ解析開始:', { bodyType: typeof req.body });
     
-    const { csvConfig, reviewCount, customPrompt, batchName, saveToDB, existingTexts, existingWordCombinations }: GenerateReviewsRequest = req.body;
+    const { reviewCount, customPrompt, batchName, saveToDB, existingTexts, existingWordCombinations }: GenerateReviewsRequest = req.body;
+    let csvConfig = req.body.csvConfig;
 
     console.log('📊 パラメータ確認:', {
       hasCsvConfig: !!csvConfig,
@@ -1058,6 +1061,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         details: { csvConfig: !!csvConfig, reviewCount: !!reviewCount }
       });
     }
+
+    // CSV設定の詳細バリデーション
+    console.log('🔍 CSV設定バリデーション開始');
+    const csvValidation = validateCSVDataConfig(csvConfig);
+    if (!csvValidation.isValid) {
+      console.error('❌ CSV設定バリデーションエラー:', csvValidation.errors);
+      
+      // フォールバック：デフォルトCSVファイルを読み込み
+      console.log('🔄 デフォルトCSVファイルへのフォールバック開始');
+      try {
+        const defaultCSVConfig = await loadDefaultCSVConfig();
+        console.log('✅ デフォルトCSVファイル読み込み成功');
+        
+        // デフォルトCSVConfigで置き換え
+        csvConfig = defaultCSVConfig;
+        
+        // デフォルトCSVConfigの再バリデーション
+        const defaultValidation = validateCSVDataConfig(csvConfig);
+        if (!defaultValidation.isValid) {
+          console.error('❌ デフォルトCSV設定もバリデーションエラー:', defaultValidation.errors);
+          return res.status(500).json({ 
+            error: 'Default CSV configuration is also invalid',
+            details: defaultValidation.errors
+          });
+        }
+        
+      } catch (defaultError) {
+        console.error('❌ デフォルトCSVファイル読み込みエラー:', defaultError);
+        return res.status(500).json({ 
+          error: 'Failed to load default CSV configuration',
+          details: defaultError instanceof Error ? defaultError.message : 'Unknown error',
+          originalErrors: csvValidation.errors
+        });
+      }
+    }
+    console.log('✅ CSV設定バリデーション完了');
 
     if (reviewCount < 1 || reviewCount > 100) {
       console.error('❌ reviewCount範囲エラー:', reviewCount);
@@ -1164,12 +1203,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           
           // 使用可能ワードの完全リスト表示（デバッグ用）
           const availableWords = {
-            areas: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [],
-            businessTypes: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [],
-            usps: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')?.map(rule => rule.content) || [],
-            environments: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [],
-            subs: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')?.map(rule => rule.content) || [],
-            recommendations: csvConfig.basicRules?.filter(rule => rule.category === 'recommendation_phrases')?.map(rule => rule.content) || []
+            areas: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'area')?.map((rule: BasicRule) => rule.content) || [],
+            businessTypes: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'business_type')?.map((rule: BasicRule) => rule.content) || [],
+            usps: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'usp')?.map((rule: BasicRule) => rule.content) || [],
+            environments: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'environment')?.map((rule: BasicRule) => rule.content) || [],
+            subs: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'sub')?.map((rule: BasicRule) => rule.content) || [],
+            recommendations: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'recommendation_phrases')?.map((rule: BasicRule) => rule.content) || []
           };
           
           console.log(`🎯 選択された要素 (レビュー ${i + 1}):`, {
@@ -1191,9 +1230,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           
           // CSV要素の整合性チェック（スコープ内の変数を使用）
-          const currentAreas = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [];
-          const currentBusinessTypes = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [];
-          const currentEnvironments = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [];
+          const currentAreas = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'area')?.map((rule: BasicRule) => rule.content) || [];
+          const currentBusinessTypes = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'business_type')?.map((rule: BasicRule) => rule.content) || [];
+          const currentEnvironments = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'environment')?.map((rule: BasicRule) => rule.content) || [];
           
           console.log(`🔍 CSV要素整合性チェック:`, {
             areaValid: currentAreas.includes(promptResult.selectedArea),
