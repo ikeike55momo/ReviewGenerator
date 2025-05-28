@@ -35,6 +35,13 @@ export interface GenerationParameters {
     usedWords?: string;
     selectedRecommendation?: string;
     
+    // 品質管理用パラメータ
+    qualityBreakdown?: {
+        basic?: any;
+        qaKnowledge?: any;
+        overall?: any;
+    };
+    
     // エラー処理用
     error?: boolean;
     error_message?: string;
