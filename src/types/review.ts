@@ -32,7 +32,7 @@ export interface GenerationParameters {
     selectedElements?: any;
     targetLength?: number;
     customPrompt?: string;
-    usedWords?: string;
+    usedWords?: string[];
     selectedRecommendation?: string;
     mode?: string; // API エンドポイントの動作モード
     timestamp?: string; // 生成時刻

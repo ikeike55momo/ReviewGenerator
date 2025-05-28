@@ -77,9 +77,12 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
         if (review.reviewText && !allGeneratedTexts.includes(review.reviewText)) {
           allGeneratedTexts.push(review.reviewText);
         }
-        // ワード組み合わせも記録
-        if (review.generationParameters?.usedWords && !allUsedWordCombinations.includes(review.generationParameters.usedWords)) {
-          allUsedWordCombinations.push(review.generationParameters.usedWords);
+        // ワード組み合わせも記録（配列を文字列に変換して比較）
+        if (review.generationParameters?.usedWords) {
+          const usedWordsString = JSON.stringify(review.generationParameters.usedWords);
+          if (!allUsedWordCombinations.includes(usedWordsString)) {
+            allUsedWordCombinations.push(usedWordsString);
+          }
         }
       }
       
