@@ -36,6 +36,7 @@ export interface GenerationParameters {
     selectedRecommendation?: string;
     mode?: string; // API エンドポイントの動作モード
     timestamp?: string; // 生成時刻
+    seed?: number; // 生成シード値
     
     // API特有のパラメータ
     selectedAge?: string;
