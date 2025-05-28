@@ -184,7 +184,7 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
     }
 
     // CSV設定のバリデーション
-    const csvValidation = validateCSVConfig(csvConfig);
+    const csvValidation = validateCSVConfig(csvConfig as any);
     if (!csvValidation.isValid) {
       return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
         createErrorResponse('VALIDATION_ERROR', 'Invalid CSV configuration', csvValidation.errors)
