@@ -15,7 +15,7 @@ import {
   HTTP_STATUS,
   sanitizeInput
 } from '../../utils/api-common';
-import { validateCSVConfig, validateGenerationParameters } from '../../utils/validators';
+import { validateCSVDataConfig, validateGenerationParameters } from '../../utils/validators';
 
 export const config = {
   maxDuration: 300, // 5分
@@ -159,7 +159,10 @@ async function callClaudeAPISimple(prompt: string, apiKey: string): Promise<stri
 const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   console.log('🔧 シンプル版レビュー生成API呼び出し:', {
     method: req.method,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    userAgent: req.headers['user-agent'],
+    origin: req.headers.origin,
+    environment: process.env.NODE_ENV
   });
 
   try {
@@ -184,12 +187,25 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
     }
 
     // CSV設定のバリデーション
-    const csvValidation = validateCSVConfig(csvConfig as any);
+    console.log('🔍 CSV設定バリデーション開始:', {
+      csvConfigType: typeof csvConfig,
+      hasBasicRules: !!csvConfig?.basicRules,
+      hasHumanPatterns: !!csvConfig?.humanPatterns,
+      hasQaKnowledge: !!csvConfig?.qaKnowledge,
+      hasSuccessExamples: !!csvConfig?.successExamples,
+      basicRulesLength: csvConfig?.basicRules?.length || 0,
+      humanPatternsLength: csvConfig?.humanPatterns?.length || 0
+    });
+
+    const csvValidation = validateCSVDataConfig(csvConfig);
     if (!csvValidation.isValid) {
+      console.error('❌ CSV設定バリデーションエラー:', csvValidation.errors);
       return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
         createErrorResponse('VALIDATION_ERROR', 'Invalid CSV configuration', csvValidation.errors)
       );
     }
+
+    console.log('✅ CSV設定バリデーション成功');
 
     // シンプル版の制限チェック
     if (reviewCount > 30) {

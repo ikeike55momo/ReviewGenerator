@@ -13,6 +13,7 @@
  */
 
 import { ReviewRequest, GenerationParameters, CSVConfig, UploadedFile, BatchGenerationRequest } from '../types/review';
+import { CSVConfig as CSVDataConfig, BasicRule, HumanPattern, QAKnowledge, SuccessExample } from '../types/csv';
 
 /**
  * バリデーション結果型
@@ -142,7 +143,87 @@ export function validateGenerationParameters(params: GenerationParameters): Vali
 }
 
 /**
- * CSV 設定のバリデーション
+ * CSV データ設定のバリデーション（csv.ts型用）
+ */
+export function validateCSVDataConfig(config: any): ValidationResult {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // 設定が存在するかチェック
+    if (!config || typeof config !== 'object') {
+        errors.push('CSV configuration object is required');
+        return { isValid: false, errors };
+    }
+
+    // basicRules の検証
+    if (!config.basicRules || !Array.isArray(config.basicRules)) {
+        errors.push('Basic rules data is required and must be an array');
+    } else if (config.basicRules.length === 0) {
+        warnings.push('Basic rules array is empty');
+    } else {
+        config.basicRules.forEach((rule: any, index: number) => {
+            if (!rule || typeof rule !== 'object') {
+                errors.push(`Basic rule ${index + 1}: must be an object`);
+            } else if (!rule.category || !rule.type || !rule.content) {
+                errors.push(`Basic rule ${index + 1}: category, type, and content are required`);
+            }
+        });
+    }
+
+    // humanPatterns の検証
+    if (!config.humanPatterns || !Array.isArray(config.humanPatterns)) {
+        errors.push('Human patterns data is required and must be an array');
+    } else if (config.humanPatterns.length === 0) {
+        warnings.push('Human patterns array is empty');
+    } else {
+        config.humanPatterns.forEach((pattern: any, index: number) => {
+            if (!pattern || typeof pattern !== 'object') {
+                errors.push(`Human pattern ${index + 1}: must be an object`);
+            } else if (!pattern.age_group || !pattern.personality_type || !pattern.vocabulary) {
+                errors.push(`Human pattern ${index + 1}: age_group, personality_type, and vocabulary are required`);
+            }
+        });
+    }
+
+    // qaKnowledge の検証
+    if (!config.qaKnowledge || !Array.isArray(config.qaKnowledge)) {
+        errors.push('QA knowledge data is required and must be an array');
+    } else if (config.qaKnowledge.length === 0) {
+        warnings.push('QA knowledge array is empty');
+    } else {
+        config.qaKnowledge.forEach((qa: any, index: number) => {
+            if (!qa || typeof qa !== 'object') {
+                errors.push(`QA knowledge ${index + 1}: must be an object`);
+            } else if (!qa.question || !qa.answer || !qa.category) {
+                errors.push(`QA knowledge ${index + 1}: question, answer, and category are required`);
+            }
+        });
+    }
+
+    // successExamples の検証
+    if (!config.successExamples || !Array.isArray(config.successExamples)) {
+        errors.push('Success examples data is required and must be an array');
+    } else if (config.successExamples.length === 0) {
+        warnings.push('Success examples array is empty');
+    } else {
+        config.successExamples.forEach((example: any, index: number) => {
+            if (!example || typeof example !== 'object') {
+                errors.push(`Success example ${index + 1}: must be an object`);
+            } else if (!example.review || !example.age || !example.gender) {
+                errors.push(`Success example ${index + 1}: review, age, and gender are required`);
+            }
+        });
+    }
+
+    return {
+        isValid: errors.length === 0,
+        errors,
+        warnings: warnings.length > 0 ? warnings : undefined
+    };
+}
+
+/**
+ * CSV 設定のバリデーション（review.ts型用、レガシー）
  */
 export function validateCSVConfig(config: CSVConfig): ValidationResult {
     const errors: string[] = [];
