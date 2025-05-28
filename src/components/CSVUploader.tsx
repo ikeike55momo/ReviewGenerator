@@ -1,12 +1,16 @@
 /**
  * @file CSVUploader.tsx
- * @description CSVアップロード・プレビュー・バリデーションコンポーネント
+ * @description CSVアップロード・プレビュー・バリデーションコンポーネント（shadcn/ui対応）
  * 主な機能：4つのCSVファイルの個別アップロード、即時プレビュー、スキーマバリデーション
  * 制限事項：ドラッグ&ドロップ対応、エラーメッセージ日本語表示、型安全
  */
 import React, { useState, useCallback } from 'react';
 import { parse } from 'csv-parse/sync';
 import { CSVConfig, BasicRule, HumanPattern, QAKnowledge, SuccessExample } from '../types/csv';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Alert, AlertDescription } from './ui/alert';
+import ErrorBoundary from './ErrorBoundary';
 
 interface CSVUploaderProps {
   onUploadComplete: (config: CSVConfig) => void;
@@ -189,100 +193,107 @@ export const CSVUploader: React.FC<CSVUploaderProps> = ({ onUploadComplete }) =>
   }, [handleFileUpload]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {Object.entries(CSV_TYPES).map(([csvType, config]) => {
-        const state = uploadStates[csvType as keyof typeof CSV_TYPES];
-        
-        return (
-          <div key={csvType} className="border border-gray-300 rounded-lg p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">{config.label}</h3>
-            <p className="text-sm text-gray-600 mb-4">{config.description}</p>
+    <ErrorBoundary>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {Object.entries(CSV_TYPES).map(([csvType, config]) => {
+          const state = uploadStates[csvType as keyof typeof CSV_TYPES];
+          
+          return (
+            <Card key={csvType}>
+              <CardHeader>
+                <CardTitle className="text-lg">{config.label}</CardTitle>
+                <CardDescription>{config.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
 
-            {/* アップロードエリア */}
-            <div
-              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                state.isValid
-                  ? 'border-green-300 bg-green-50'
-                  : state.error
-                  ? 'border-red-300 bg-red-50'
-                  : 'border-gray-300 bg-gray-50 hover:border-blue-400'
-              }`}
-              onDrop={(e) => handleDrop(e, csvType as keyof typeof CSV_TYPES)}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              {state.file ? (
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{state.file.name}</p>
-                  {state.isValid && (
-                    <p className="text-sm text-green-600 mt-1">✓ バリデーション成功</p>
+                {/* アップロードエリア */}
+                <div
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    state.isValid
+                      ? 'border-green-300 bg-green-50'
+                      : state.error
+                      ? 'border-destructive bg-destructive/5'
+                      : 'border-muted-foreground/25 bg-muted/50 hover:border-primary'
+                  }`}
+                  onDrop={(e) => handleDrop(e, csvType as keyof typeof CSV_TYPES)}
+                  onDragOver={(e) => e.preventDefault()}
+                >
+                  {state.file ? (
+                    <div>
+                      <p className="text-sm font-medium">{state.file.name}</p>
+                      {state.isValid && (
+                        <p className="text-sm text-green-600 mt-1">✓ バリデーション成功</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm text-muted-foreground">CSVファイルをドラッグ&ドロップ</p>
+                      <p className="text-xs text-muted-foreground mt-1">または</p>
+                    </div>
                   )}
+
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => handleFileSelect(e, csvType as keyof typeof CSV_TYPES)}
+                    className="hidden"
+                    id={`file-input-${csvType}`}
+                  />
+                  <Button asChild className="mt-2">
+                    <label htmlFor={`file-input-${csvType}`} className="cursor-pointer">
+                      ファイルを選択
+                    </label>
+                  </Button>
                 </div>
-              ) : (
-                <div>
-                  <p className="text-sm text-gray-600">CSVファイルをドラッグ&ドロップ</p>
-                  <p className="text-xs text-gray-500 mt-1">または</p>
-                </div>
-              )}
 
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => handleFileSelect(e, csvType as keyof typeof CSV_TYPES)}
-                className="hidden"
-                id={`file-input-${csvType}`}
-              />
-              <label
-                htmlFor={`file-input-${csvType}`}
-                className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 cursor-pointer"
-              >
-                ファイルを選択
-              </label>
-            </div>
+                {/* エラーメッセージ */}
+                {state.error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>
+                      {state.error}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
-            {/* エラーメッセージ */}
-            {state.error && (
-              <div className="mt-3 p-3 bg-red-100 border border-red-300 rounded text-sm text-red-700">
-                {state.error}
-              </div>
-            )}
-
-            {/* プレビュー */}
-            {state.data && state.data.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">プレビュー（最大5件）</h4>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-xs border border-gray-200">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        {Object.keys(state.data[0]).map(header => (
-                          <th key={header} className="px-2 py-1 text-left border-b border-gray-200">
-                            {header}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {state.data.slice(0, 5).map((row, index) => (
-                        <tr key={index} className="border-b border-gray-100">
-                          {Object.values(row).map((cell, cellIndex) => (
-                            <td key={cellIndex} className="px-2 py-1 border-r border-gray-100">
-                              {String(cell).substring(0, 50)}
-                              {String(cell).length > 50 && '...'}
-                            </td>
+                {/* プレビュー */}
+                {state.data && state.data.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-2">プレビュー（最大5件）</h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-xs border border-border rounded-md">
+                        <thead className="bg-muted">
+                          <tr>
+                            {Object.keys(state.data[0]).map(header => (
+                              <th key={header} className="px-2 py-1 text-left border-b border-border">
+                                {header}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {state.data.slice(0, 5).map((row, index) => (
+                            <tr key={index} className="border-b border-border">
+                              {Object.values(row).map((cell, cellIndex) => (
+                                <td key={cellIndex} className="px-2 py-1 border-r border-border">
+                                  {String(cell).substring(0, 50)}
+                                  {String(cell).length > 50 && '...'}
+                                </td>
+                              ))}
+                            </tr>
                           ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  総件数: {state.data.length}件
-                </p>
-              </div>
-            )}
-          </div>
-        );
-      })}
-    </div>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      総件数: {state.data.length}件
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </ErrorBoundary>
   );
 }; 
