@@ -15,6 +15,42 @@
  * - データベーススキーマと一致させる必要がある
  */
 
+/**
+ * 生成パラメータ型定義
+ */
+export interface GenerationParameters {
+    temperature: number;
+    maxTokens: number;
+    topP?: number;
+    frequencyPenalty?: number;
+    presencePenalty?: number;
+    model?: string;
+    timeout?: number;
+}
+
+/**
+ * CSV 設定型定義
+ */
+export interface CSVConfig {
+    uploadedFiles: UploadedFile[];
+    delimiter?: string;
+    encoding?: string;
+    skipEmptyLines?: boolean;
+    headers?: string[];
+}
+
+/**
+ * アップロードファイル型定義
+ */
+export interface UploadedFile {
+    id: string;
+    name: string;
+    size: number;
+    type: string;
+    content?: string;
+    lastModified?: number;
+}
+
 export interface ReviewRequest {
     age_group?: string;
     age?: string;
@@ -46,7 +82,7 @@ export interface GeneratedReview {
     reviewerGender: 'male' | 'female' | 'other';
     qualityScore: number;
     generationPrompt?: string;
-    generationParameters?: any;
+    generationParameters?: GenerationParameters;
     csvFileIds: string[];
     generationBatchId?: string;
     isApproved?: boolean;
@@ -64,7 +100,7 @@ export interface GenerationBatch {
     completedCount: number;
     failedCount: number;
     status: 'pending' | 'processing' | 'completed' | 'failed';
-    generationParameters: any;
+    generationParameters: GenerationParameters;
     csvFileIds: string[];
     startTime?: string;
     endTime?: string;
@@ -77,7 +113,7 @@ export interface GenerationBatch {
  * バッチ生成リクエスト
  */
 export interface BatchGenerationRequest {
-    csvConfig: any;
+    csvConfig: CSVConfig;
     batchSize: number;
     batchCount: number;
     customPrompt?: string;

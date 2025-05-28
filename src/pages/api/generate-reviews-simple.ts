@@ -5,6 +5,17 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { CSVConfig } from '../../types/csv';
 import { GeneratedReview } from '../../types/review';
+import { 
+  withApiHandler, 
+  validateRequestBody, 
+  parseAndValidateParams,
+  createErrorResponse,
+  createSuccessResponse,
+  sendResponse,
+  HTTP_STATUS,
+  sanitizeInput
+} from '../../utils/api-common';
+import { validateCSVConfig, validateGenerationParameters } from '../../utils/validators';
 
 export const config = {
   maxDuration: 300, // 5分
@@ -145,27 +156,47 @@ async function callClaudeAPISimple(prompt: string, apiKey: string): Promise<stri
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   console.log('🔧 シンプル版レビュー生成API呼び出し:', {
     method: req.method,
     timestamp: new Date().toISOString()
   });
 
-  // CORSヘッダー設定
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
   try {
-    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = req.body;
+    // リクエストボディの基本バリデーション
+    const bodyValidation = validateRequestBody(req.body, ['csvConfig', 'reviewCount']);
+    if (!bodyValidation.isValid) {
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
+        createErrorResponse('VALIDATION_ERROR', 'Invalid request body', bodyValidation.errors)
+      );
+    }
+
+    // 入力をサニタイズ
+    const sanitizedBody = sanitizeInput(req.body);
+    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = sanitizedBody;
+
+    // パラメータのパースとバリデーション
+    const paramValidation = parseAndValidateParams({ body: { reviewCount } } as NextApiRequest);
+    if (paramValidation.errors.length > 0) {
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
+        createErrorResponse('VALIDATION_ERROR', 'Invalid parameters', paramValidation.errors)
+      );
+    }
+
+    // CSV設定のバリデーション
+    const csvValidation = validateCSVConfig(csvConfig);
+    if (!csvValidation.isValid) {
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
+        createErrorResponse('VALIDATION_ERROR', 'Invalid CSV configuration', csvValidation.errors)
+      );
+    }
+
+    // シンプル版の制限チェック
+    if (reviewCount > 30) {
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
+        createErrorResponse('VALIDATION_ERROR', 'Simple version limited to 30 reviews maximum')
+      );
+    }
 
     console.log('📊 シンプル版パラメータ確認:', {
       hasCsvConfig: !!csvConfig,
@@ -173,19 +204,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       humanPatternsCount: csvConfig?.humanPatterns?.length || 0,
       basicRulesCount: csvConfig?.basicRules?.length || 0
     });
-
-    // 入力バリデーション
-    if (!csvConfig || !reviewCount) {
-      return res.status(400).json({ 
-        error: 'csvConfigとreviewCountは必須です'
-      });
-    }
-
-    if (reviewCount < 1 || reviewCount > 30) { // シンプル版では30件まで
-      return res.status(400).json({ 
-        error: 'シンプル版では1～30件の範囲で指定してください'
-      });
-    }
 
     // 環境変数チェック
     const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
@@ -283,14 +301,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`🎉 シンプル生成完了 - 総数: ${generatedReviews.length}, 成功: ${successfulReviews.length}`);
 
-    return res.status(200).json(successfulReviews);
+    return sendResponse(res, HTTP_STATUS.OK, createSuccessResponse(successfulReviews));
 
   } catch (error) {
     console.error('❌ シンプル版レビュー生成システム Error:', error);
     
-    return res.status(500).json({
-      error: 'シンプル版レビュー生成中に予期しないエラーが発生しました',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
+    return sendResponse(res, HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      createErrorResponse('INTERNAL_ERROR', 'Simple review generation failed', 
+        error instanceof Error ? error.message : 'Unknown error')
+    );
   }
-} 
+};
+
+// APIハンドラーをwithApiHandlerでラップして、CORS、メソッドチェック、エラーハンドリングを追加
+export default withApiHandler(simpleHandler, {
+  allowedMethods: ['POST'],
+  requireAuth: false
+}); 

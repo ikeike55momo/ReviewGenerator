@@ -510,19 +510,71 @@ export const logQualityCheck = async (
 };
 
 /**
- * 既存のレビューテキストを全て取得（重複チェック用）
- * @param {number} limit - 取得件数制限（デフォルト: 1000）
- * @returns {Promise<string[]>} 既存レビューテキスト一覧
+ * 既存のレビューテキストをページネーションで取得（重複チェック用）
+ * @param {number} page - ページ番号（0ベース）
+ * @param {number} pageSize - ページサイズ（デフォルト: 100）
+ * @returns {Promise<{reviews: string[], hasMore: boolean, total: number}>} ページネーション結果
  */
-export const getExistingReviews = async (limit: number = 1000): Promise<string[]> => {
+export const getExistingReviewsPaginated = async (page: number = 0, pageSize: number = 100): Promise<{
+  reviews: string[];
+  hasMore: boolean;
+  total: number;
+}> => {
   try {
-    console.log(`📚 既存レビュー取得開始 (制限: ${limit}件)`);
+    console.log(`📚 既存レビュー取得開始 (ページ: ${page + 1}, サイズ: ${pageSize})`);
+    
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
     
     const { data, error, count } = await supabase
       .from(TABLES.GENERATED_REVIEWS)
       .select('review_text', { count: 'exact' })
       .order('created_at', { ascending: false })
-      .limit(limit);
+      .range(from, to);
+
+    if (error) {
+      throw new Error(`既存レビュー取得エラー: ${error.message}`);
+    }
+
+    const total = count || 0;
+    const hasMore = to < total - 1;
+    const reviews = data.map(review => review.review_text);
+    
+    console.log(`✅ 既存レビュー取得完了: ${reviews.length}件 (ページ: ${page + 1}/${Math.ceil(total / pageSize)}, 総件数: ${total}件)`);
+    
+    return {
+      reviews,
+      hasMore,
+      total
+    };
+  } catch (error) {
+    console.error('既存レビュー取得エラー:', error);
+    return {
+      reviews: [],
+      hasMore: false,
+      total: 0
+    };
+  }
+};
+
+/**
+ * 既存のレビューテキストを全て取得（下位互換性のため保持）
+ * @param {number} limit - 取得件数制限（デフォルト: 100、最大: 1000）
+ * @returns {Promise<string[]>} 既存レビューテキスト一覧
+ * @deprecated getExistingReviewsPaginated を使用してください
+ */
+export const getExistingReviews = async (limit: number = 100): Promise<string[]> => {
+  // セーフガード: 最大値を制限
+  const safeLimit = Math.min(limit, 1000);
+  
+  try {
+    console.log(`📚 既存レビュー取得開始 (制限: ${safeLimit}件) - DEPRECATED: getExistingReviewsPaginated を使用してください`);
+    
+    const { data, error, count } = await supabase
+      .from(TABLES.GENERATED_REVIEWS)
+      .select('review_text', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(safeLimit);
 
     if (error) {
       throw new Error(`既存レビュー取得エラー: ${error.message}`);
