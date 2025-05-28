@@ -5,7 +5,7 @@
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { CSVConfig } from '../../types/csv';
-import { GeneratedReview } from '../../types/review';
+import { GeneratedReview, GenerationParameters } from '../../types/review';
 import { QAIntegrationHelper, SimpleQAIntegration } from '../../utils/qa-integration-helper';
 import { IntelligentQAKnowledgeAgent } from '../../agents/IntelligentQAKnowledgeAgent';
 import { IntegratedQualityManager } from '../../agents/IntegratedQualityManager';
@@ -249,7 +249,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             pattern: randomPattern,
             qaEnhanced: enableQAEnhancement,
             prompt: prompt.substring(0, 200) + '...'
-          }
+          } as unknown as GenerationParameters
         };
         
         // 🛡️ QA強化品質チェック
