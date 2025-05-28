@@ -341,7 +341,8 @@ export class ValidationHelper {
    */
   static validatePartial<T>(schema: z.ZodSchema<T>, data: unknown): { success: true; data: Partial<T> } | { success: false; error: string; issues: z.ZodIssue[] } {
     try {
-      const partialSchema = schema.partial();
+      // ZodObjectの場合のみpartialメソッドを使用
+      const partialSchema = (schema as any).partial ? (schema as any).partial() : schema;
       const result = partialSchema.parse(data);
       return { success: true, data: result };
     } catch (error) {

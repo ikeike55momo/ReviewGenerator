@@ -434,3 +434,27 @@ export function safeStringify(obj: any, maxLength: number = 1000): string {
     return '[Circular or Invalid Object]';
   }
 }
+
+/**
+ * APIキーのバリデーション
+ */
+export function validateApiKey(apiKey?: string): ValidationResult {
+  const errors: string[] = [];
+
+  if (!apiKey || apiKey.trim() === '') {
+    errors.push('API key is required');
+  }
+
+  if (apiKey && apiKey.length < 10) {
+    errors.push('API key is too short');
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * 入力データのサニタイゼーション（セキュリティ強化版）
+ */

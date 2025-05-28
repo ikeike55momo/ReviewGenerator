@@ -1086,13 +1086,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const generatedTexts = new Set<string>(); // 重複チェック用（Setで効率化）
     const usedWordCombinations = new Set<string>(); // ワード組み合わせ重複防止用（Setで効率化）
     
-    // データベースから既存のレビューを取得してグローバル重複チェック（制限あり）
+    // 既存レビューの重複チェック用データ取得（メモリ効率化）
     const existingReviews = new Set<string>();
     if (saveToDB) {
       try {
         const { getExistingReviewsPaginated } = await import('../../utils/database');
         // 最大1000件に制限してメモリ効率化
-        const result = await getExistingReviewsPaginated({ page: 1, limit: Math.min(1000, reviewCount * 5) });
+        const result = await getExistingReviewsPaginated(0, Math.min(1000, reviewCount * 5));
         result.reviews.forEach(review => existingReviews.add(review));
         console.log(`📚 既存レビュー取得: ${existingReviews.size}件`);
       } catch (error) {
@@ -1263,7 +1263,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             const lastPromptResult = buildDynamicPrompt(csvConfig, lastRandomPattern, customPrompt);
             finalPromptResult = lastPromptResult;
             finalRandomPattern = lastRandomPattern;
-            generatedTexts.push(reviewText);
+            generatedTexts.add(reviewText);
           } else {
             console.error(`❌ レビュー ${i + 1}: 有効な結果なし - スキップします`);
             continue;

@@ -151,7 +151,8 @@ async function generateReviews(
         const reviewRequest: ReviewRequest = {
           personality_type: 'friendly', // 実際の実装では randomize
           age_group: '20代', // 実際の実装では randomize
-          gender: 'other' // 実際の実装では randomize
+          gender: 'other', // 実際の実装では randomize
+          companion: 'alone' // 必須プロパティを追加
         };
 
         // プロンプト生成
@@ -229,7 +230,7 @@ export default async function handler(
 
   if (req.method !== 'POST') {
     return res.status(405).json(
-      createErrorResponse('INVALID_REQUEST', 'POST method required')
+      createErrorResponse('INVALID_REQUEST', 'POST method required') as any
     );
   }
 
@@ -239,7 +240,7 @@ export default async function handler(
     if (!apiKey) {
       console.error('❌ ANTHROPIC_API_KEY not configured');
       return res.status(500).json(
-        createErrorResponse('INTERNAL_ERROR', 'API key not configured')
+        createErrorResponse('INTERNAL_ERROR', 'API key not configured') as any
       );
     }
 
@@ -248,7 +249,7 @@ export default async function handler(
     if (!validation.isValid || !validation.data) {
       console.error('❌ Request validation failed:', validation.error);
       return res.status(400).json(
-        createErrorResponse('VALIDATION_ERROR', validation.error || 'Invalid request')
+        createErrorResponse('VALIDATION_ERROR', validation.error || 'Invalid request') as any
       );
     }
 
@@ -295,7 +296,7 @@ export default async function handler(
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return res.status(500).json(
-      createErrorResponse('INTERNAL_ERROR', `レビュー生成中にエラーが発生しました: ${errorMessage}`)
+      createErrorResponse('INTERNAL_ERROR', `レビュー生成中にエラーが発生しました: ${errorMessage}`) as any
     );
   }
 }
