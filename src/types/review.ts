@@ -19,13 +19,25 @@
  * 生成パラメータ型定義
  */
 export interface GenerationParameters {
-    temperature: number;
-    maxTokens: number;
+    temperature?: number;
+    maxTokens?: number;
     topP?: number;
     frequencyPenalty?: number;
     presencePenalty?: number;
     model?: string;
     timeout?: number;
+    
+    // 拡張されたレビュー生成メタデータ
+    selectedPattern?: string;
+    selectedElements?: string[];
+    targetLength?: number;
+    customPrompt?: string;
+    usedWords?: string;
+    selectedRecommendation?: string;
+    
+    // エラー処理用
+    error?: boolean;
+    error_message?: string;
 }
 
 /**

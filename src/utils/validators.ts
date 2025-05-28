@@ -105,13 +105,13 @@ export function validateReviewRequest(request: ReviewRequest): ValidationResult 
 export function validateGenerationParameters(params: GenerationParameters): ValidationResult {
     const errors: string[] = [];
 
-    // temperature の検証
-    if (typeof params.temperature !== 'number' || params.temperature < 0 || params.temperature > 2) {
+    // temperature の検証 (オプショナル)
+    if (params.temperature !== undefined && (typeof params.temperature !== 'number' || params.temperature < 0 || params.temperature > 2)) {
         errors.push('Temperature must be a number between 0 and 2');
     }
 
-    // maxTokens の検証
-    if (typeof params.maxTokens !== 'number' || params.maxTokens < 1 || params.maxTokens > 100000) {
+    // maxTokens の検証 (オプショナル)
+    if (params.maxTokens !== undefined && (typeof params.maxTokens !== 'number' || params.maxTokens < 1 || params.maxTokens > 100000)) {
         errors.push('MaxTokens must be a number between 1 and 100000');
     }
 
