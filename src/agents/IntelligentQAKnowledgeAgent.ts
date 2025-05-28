@@ -118,28 +118,31 @@ A${i+1}: ${qa.answer}
 改善後: ${qa.example_after || 'なし'}
 `).join('\n')}
 
-以下のJSON形式で分析結果を出力してください：
+以下の厳密なJSON形式で分析結果を出力してください（他の文字は含めないでください）：
+
 {
   "commonPatterns": [
     {
-      "patternType": "表現パターン|内容パターン|構造パターン",
+      "patternType": "表現パターン",
       "description": "パターンの説明",
-      "frequency": "高|中|低",
+      "frequency": "高",
       "examples": ["例1", "例2", "例3"],
       "rootCause": "根本原因"
     }
   ],
   "prohibitionRules": [
     {
-      "ruleType": "汎用ルール|特定ルール",
+      "ruleType": "汎用ルール",
       "rule": "ルールの内容",
       "reasoning": "なぜこのルールが必要か",
       "scope": "適用範囲",
-      "preventionLevel": "高|中|低"
+      "preventionLevel": "高"
     }
   ],
   "preventiveGuidance": "今後の問題を予防するための汎用的な指針"
 }
+
+注意：JSON以外の説明文は含めず、上記の構造のみを出力してください。
 `;
 
       const analysisResult = await this.generate(analysisPrompt);
@@ -285,20 +288,23 @@ A: ${qa.answer}
 避けるべき例: ${qa.example_before || 'なし'}
 `).join('\n')}
 
-以下のJSON形式で判定してください：
+以下の厳密なJSON形式で判定してください（他の文字は含めないでください）：
+
 {
-  "overallQuality": "適切|要注意|不適切",
+  "overallQuality": "適切",
   "violations": [
     {
       "type": "違反タイプ",
       "description": "具体的な問題",
-      "severity": "高|中|低",
-      "relatedQA": "関連するQA番号"
+      "severity": "高",
+      "relatedQA": "関連するQA"
     }
   ],
   "preventiveGuidance": "今後同様の問題を避けるための指針",
   "confidenceLevel": 0.85
 }
+
+注意：JSON以外の説明文は含めず、上記の構造のみを出力してください。
 `;
 
       const judgement = await this.generate(judgementPrompt);
@@ -339,14 +345,15 @@ ${newIssues.map((issue, i) => `
 
 既存QAナレッジ数: ${existingQAKnowledge.length}件
 
-以下のJSON形式で提案してください：
+以下の厳密なJSON形式で提案してください（他の文字は含めないでください）：
+
 {
   "newQAEntries": [
     {
       "question": "新しいQ",
       "answer": "新しいA", 
       "category": "カテゴリ",
-      "priority": "Critical|High|Medium|Low",
+      "priority": "High",
       "example_situation": "発生状況",
       "example_before": "問題のある例",
       "example_after": "改善された例"
@@ -355,7 +362,7 @@ ${newIssues.map((issue, i) => `
   "updateSuggestions": [
     {
       "targetQA": "更新対象のQA",
-      "updateType": "拡張|修正|統合",
+      "updateType": "拡張",
       "newContent": "更新内容",
       "reason": "更新理由"
     }
@@ -368,6 +375,8 @@ ${newIssues.map((issue, i) => `
     }
   ]
 }
+
+注意：JSON以外の説明文は含めず、上記の構造のみを出力してください。
 `;
 
       const updateProposal = await this.generate(updatePrompt);
@@ -492,23 +501,35 @@ ${newIssues.map((issue, i) => `
       // 1. 基本的なクリーニング
       let cleanedResult = this.cleanJSONString(result);
       
-      // 2. 標準パース試行
+      // 2. JSONの完全性をチェックして修正
+      cleanedResult = this.ensureCompleteJSON(cleanedResult, 'judgement');
+      
+      // 3. 標準パース試行
       return JSON.parse(cleanedResult);
     } catch (error) {
       console.error('❌ 判定結果パースエラー:', error);
       console.log('🔍 パース失敗した文字列:', result.substring(0, 500) + (result.length > 500 ? '...' : ''));
       
-      // 3. フォールバック: 部分的な情報を抽出
+      // 4. 段階的フォールバック処理
       try {
-        const fallbackResult = this.extractPartialJSONInfo(result, 'judgement');
-        console.log('🔧 フォールバック処理で部分情報を抽出しました');
-        return fallbackResult;
-      } catch (fallbackError) {
-        console.error('❌ フォールバック処理も失敗:', fallbackError);
-        return {
-          violations: [],
-          preventiveGuidance: '判定結果の解析に失敗しました（AI応答が不完全な可能性があります）'
-        };
+        // 4-1. より積極的なJSONクリーニングを試行
+        const aggressiveCleanedResult = this.aggressiveJSONCleanup(result);
+        const parsedAggressive = JSON.parse(aggressiveCleanedResult);
+        console.log('🔧 積極的クリーニングで解析成功');
+        return parsedAggressive;
+      } catch (aggressiveError) {
+        // 4-2. 部分的な情報を抽出
+        try {
+          const fallbackResult = this.extractPartialJSONInfo(result, 'judgement');
+          console.log('🔧 フォールバック処理で部分情報を抽出しました');
+          return fallbackResult;
+        } catch (fallbackError) {
+          console.error('❌ フォールバック処理も失敗:', fallbackError);
+          return {
+            violations: [],
+            preventiveGuidance: '判定結果の解析に失敗しました（AI応答が不完全な可能性があります）'
+          };
+        }
       }
     }
   }
@@ -521,30 +542,42 @@ ${newIssues.map((issue, i) => `
       // 1. 基本的なクリーニング
       let cleanedResult = this.cleanJSONString(result);
       
-      // 2. 標準パース試行
+      // 2. JSONの完全性をチェックして修正
+      cleanedResult = this.ensureCompleteJSON(cleanedResult, 'update');
+      
+      // 3. 標準パース試行
       return JSON.parse(cleanedResult);
     } catch (error) {
       console.error('❌ 更新提案パースエラー:', error);
       console.log('🔍 パース失敗した文字列:', result.substring(0, 500) + (result.length > 500 ? '...' : ''));
       
-      // 3. フォールバック: 部分的な情報を抽出
+      // 4. 段階的フォールバック処理
       try {
-        const fallbackResult = this.extractPartialJSONInfo(result, 'update');
-        console.log('🔧 フォールバック処理で部分情報を抽出しました');
-        return fallbackResult;
-      } catch (fallbackError) {
-        console.error('❌ フォールバック処理も失敗:', fallbackError);
-        return {
-          newQAEntries: [],
-          updateSuggestions: [],
-          consolidationOpportunities: []
-        };
+        // 4-1. より積極的なJSONクリーニングを試行
+        const aggressiveCleanedResult = this.aggressiveJSONCleanup(result);
+        const parsedAggressive = JSON.parse(aggressiveCleanedResult);
+        console.log('🔧 積極的クリーニングで解析成功');
+        return parsedAggressive;
+      } catch (aggressiveError) {
+        // 4-2. 部分的な情報を抽出
+        try {
+          const fallbackResult = this.extractPartialJSONInfo(result, 'update');
+          console.log('🔧 フォールバック処理で部分情報を抽出しました');
+          return fallbackResult;
+        } catch (fallbackError) {
+          console.error('❌ フォールバック処理も失敗:', fallbackError);
+          return {
+            newQAEntries: [],
+            updateSuggestions: [],
+            consolidationOpportunities: []
+          };
+        }
       }
     }
   }
 
   /**
-   * 🔧 JSONストリングのクリーニング
+   * 🔧 JSONストリングのクリーニング（基本版）
    */
   private cleanJSONString(jsonString: string): string {
     try {
@@ -553,30 +586,162 @@ ${newIssues.map((issue, i) => `
       cleaned = cleaned.replace(/^```json\s*/, '').replace(/```$/, '');
       cleaned = cleaned.replace(/^```\s*/, '').replace(/```$/, '');
       
-      // 2. Unicode escape sequences の修正
+      // 2. 日本語テキストの前後にある不要な文字を除去
+      cleaned = cleaned.replace(/^[^{\[]*/, ''); // JSON開始まで
+      cleaned = cleaned.replace(/[^}\]]*$/, ''); // JSON終了以降
+      
+      // 3. Unicode escape sequences の修正
       cleaned = cleaned.replace(/\\u([0-9a-fA-F]{4})/g, (match, hex) => {
         return String.fromCharCode(parseInt(hex, 16));
       });
       
-      // 3. 不正な改行やタブの修正
-      cleaned = cleaned.replace(/\n/g, ' ').replace(/\t/g, ' ');
-      
-      // 4. 重複したスペースを単一のスペースに
-      cleaned = cleaned.replace(/\s+/g, ' ');
-      
-      // 5. プロパティ名のクォートが抜けている場合の修正
-      cleaned = cleaned.replace(/(\w+):/g, '"$1":');
-      
-      // 6. 文字列値のクォート修正
-      cleaned = cleaned.replace(/:\s*([^",\{\[\}\]]+)(?=\s*[,\}])/g, ': "$1"');
-      
-      // 7. 最後のカンマを削除
+      // 4. 最後のカンマを削除
       cleaned = cleaned.replace(/,(\s*[\}\]])/g, '$1');
       
       return cleaned;
     } catch (error) {
       console.error('❌ JSONクリーニング中にエラー:', error);
       return jsonString;
+    }
+  }
+
+  /**
+   * 🔧 積極的なJSONクリーニング（エラー時の強力な修正）
+   */
+  private aggressiveJSONCleanup(jsonString: string): string {
+    try {
+      let cleaned = jsonString.trim();
+      
+      // 1. マークダウンコードブロックの除去
+      cleaned = cleaned.replace(/^```json\s*/, '').replace(/```$/, '');
+      cleaned = cleaned.replace(/^```\s*/, '').replace(/```$/, '');
+      
+      // 2. JSONの開始と終了を特定
+      const startMatch = cleaned.search(/[{\[]/);
+      const lastBrace = cleaned.lastIndexOf('}');
+      const lastBracket = cleaned.lastIndexOf(']');
+      const endPos = Math.max(lastBrace, lastBracket);
+      
+      if (startMatch !== -1 && endPos !== -1) {
+        cleaned = cleaned.substring(startMatch, endPos + 1);
+      }
+      
+      // 3. 文字列内の不正なエスケープを修正
+      cleaned = cleaned.replace(/\\\\"/g, '"'); // 過剰なエスケープを修正
+      cleaned = cleaned.replace(/"([^"]*?)\n([^"]*?)"/g, '"$1 $2"'); // 文字列内改行を除去
+      
+      // 4. プロパティ名の修正
+      cleaned = cleaned.replace(/(\w+)\s*:/g, '"$1":');
+      
+      // 5. 文字列値のクォート修正（より安全に）
+      cleaned = cleaned.replace(/:\s*([^"',\{\[\}\]\n][^,\{\[\}\]\n]*?)(?=\s*[,\}\]])/g, ': "$1"');
+      
+      // 6. 数値のクォートを除去
+      cleaned = cleaned.replace(/"(\d+(?:\.\d+)?)"/g, '$1');
+      cleaned = cleaned.replace(/"(true|false|null)"/g, '$1');
+      
+      // 7. 末尾カンマの除去
+      cleaned = cleaned.replace(/,(\s*[\}\]])/g, '$1');
+      
+      // 8. 重複した区切り文字の修正
+      cleaned = cleaned.replace(/,+/g, ',');
+      cleaned = cleaned.replace(/}+/g, '}');
+      cleaned = cleaned.replace(/\]+/g, ']');
+      
+      return cleaned;
+    } catch (error) {
+      console.error('❌ 積極的JSONクリーニング中にエラー:', error);
+      return jsonString;
+    }
+  }
+
+  /**
+   * 🔧 JSONの完全性を確保（不完全なJSONを修正）
+   */
+  private ensureCompleteJSON(jsonString: string, type: 'judgement' | 'update'): string {
+    try {
+      let fixed = jsonString.trim();
+      
+      // 1. オブジェクトの開始が確実にあるかチェック
+      if (!fixed.startsWith('{')) {
+        const startIndex = fixed.indexOf('{');
+        if (startIndex !== -1) {
+          fixed = fixed.substring(startIndex);
+        } else {
+          // JSONオブジェクトが見つからない場合、デフォルト構造を作成
+          return this.createDefaultJSON(type);
+        }
+      }
+      
+      // 2. オブジェクトの終了を確保
+      let braceCount = 0;
+      let lastValidIndex = -1;
+      
+      for (let i = 0; i < fixed.length; i++) {
+        if (fixed[i] === '{') {
+          braceCount++;
+        } else if (fixed[i] === '}') {
+          braceCount--;
+          if (braceCount === 0) {
+            lastValidIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // 3. 不完全な場合は補完
+      if (braceCount > 0) {
+        // 開いたブレースがある場合、閉じブレースを追加
+        fixed = fixed + '}'.repeat(braceCount);
+      } else if (lastValidIndex !== -1) {
+        // 有効な終了位置が見つかった場合、そこまでを使用
+        fixed = fixed.substring(0, lastValidIndex + 1);
+      }
+      
+      // 4. 必要最小限の構造を確保
+      if (type === 'judgement') {
+        if (!fixed.includes('"violations"')) {
+          fixed = fixed.slice(0, -1) + ', "violations": []}';
+        }
+        if (!fixed.includes('"preventiveGuidance"')) {
+          fixed = fixed.slice(0, -1) + ', "preventiveGuidance": "不完全な応答"}';
+        }
+      } else if (type === 'update') {
+        if (!fixed.includes('"newQAEntries"')) {
+          fixed = fixed.slice(0, -1) + ', "newQAEntries": []}';
+        }
+        if (!fixed.includes('"updateSuggestions"')) {
+          fixed = fixed.slice(0, -1) + ', "updateSuggestions": []}';
+        }
+        if (!fixed.includes('"consolidationOpportunities"')) {
+          fixed = fixed.slice(0, -1) + ', "consolidationOpportunities": []}';
+        }
+      }
+      
+      return fixed;
+    } catch (error) {
+      console.error('❌ JSON完全性確保中にエラー:', error);
+      return this.createDefaultJSON(type);
+    }
+  }
+
+  /**
+   * 🔧 デフォルトJSON構造を作成
+   */
+  private createDefaultJSON(type: 'judgement' | 'update'): string {
+    if (type === 'judgement') {
+      return JSON.stringify({
+        overallQuality: "適切",
+        violations: [],
+        preventiveGuidance: "AI応答が不完全でした",
+        confidenceLevel: 0.5
+      });
+    } else {
+      return JSON.stringify({
+        newQAEntries: [],
+        updateSuggestions: [],
+        consolidationOpportunities: []
+      });
     }
   }
 
