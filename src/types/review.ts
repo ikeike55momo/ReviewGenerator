@@ -26,6 +26,18 @@ export interface GenerationParameters {
     presencePenalty?: number;
     model?: string;
     timeout?: number;
+    
+    // レビュー生成時の追加パラメータ
+    selectedPattern?: any;
+    selectedElements?: any;
+    targetLength?: number;
+    customPrompt?: string;
+    usedWords?: string;
+    selectedRecommendation?: string;
+    
+    // エラー処理用
+    error?: boolean;
+    error_message?: string;
 }
 
 /**
