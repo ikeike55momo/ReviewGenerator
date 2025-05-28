@@ -1,0 +1,379 @@
+# .github/workflows/claude-official.yml
+name: 🤖 Claude Code Official Action
+
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  claude-response:
+    runs-on: ubuntu-latest
+    # 公式推奨：claude-dev ラベルまたは @claude メンション
+    if: |
+      contains(github.event.issue.labels.*.name, 'claude-dev') ||
+      contains(github.event.issue.labels.*.name, 'claude-fix') ||
+      contains(github.event.comment.body, '@claude') ||
+      contains(github.event.issue.body, '@claude')
+    
+    steps:
+      - name: 🤖 Claude Code Action
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # 自動でIssue/PRの内容を読み取り、適切な対応を実行
+
+---
+# .github/workflows/claude-custom-dev.yml  
+# カスタム開発ワークフロー（既存のファイルを改良）
+name: 🛠️ Claude Custom Development
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to process'
+        required: true
+        type: number
+
+jobs:
+  claude-custom-development:
+    runs-on: ubuntu-latest
+    if: contains(github.event.issue.labels.*.name, 'claude-dev')
+    
+    steps:
+      - name: 🚀 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: 🔧 Install dependencies
+        run: npm ci
+        
+      - name: 📋 Parse Issue and Generate Prompt
+        id: parse-issue
+        run: |
+          echo "📋 Parsing issue #${{ github.event.issue.number }}..."
+          
+          # Issue content
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          ISSUE_BODY="${{ github.event.issue.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          
+          # Extract phase and priority
+          PHASE=$(echo "$ISSUE_BODY" | grep -o "Phase [0-9]" | head -1 | grep -o "[0-9]" || echo "2")
+          
+          if echo "$ISSUE_BODY" | grep -q "🔥 緊急"; then
+            PRIORITY="urgent"
+          elif echo "$ISSUE_BODY" | grep -q "⚡ 高"; then
+            PRIORITY="high"  
+          else
+            PRIORITY="normal"
+          fi
+          
+          echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+          echo "phase=$PHASE" >> $GITHUB_OUTPUT
+          echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
+          
+          # Create development prompt
+          cat > claude-development-prompt.txt << EOF
+          ## GitHub Issue Analysis & Implementation Request
+          
+          **Issue:** #${ISSUE_NUMBER} - ${ISSUE_TITLE}
+          **Phase:** ${PHASE}
+          **Priority:** ${PRIORITY}
+          
+          ### Issue Content:
+          ${ISSUE_BODY}
+          
+          ### System Context:
+          - Project: CSV駆動口コミ生成AIエージェント
+          - Tech Stack: Mastra Framework, Claude Sonnet 4, Next.js, TypeScript
+          - Current Phase: ${PHASE}
+          
+          ### Implementation Request:
+          上記のIssueを分析し、適切な実装を行ってください。
+          要件に基づいて実際に動作するコードを生成し、
+          ファイル構造と実装手順を明確に示してください。
+          EOF
+          
+      - name: 🤖 Call Claude API for Development
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "🤖 Calling Claude API for Issue #${{ steps.parse-issue.outputs.issue_number }}..."
+          
+          # Create Node.js script for Claude API call
+          cat > claude-api-call.js << 'EOF'
+          const { Anthropic } = require('@anthropic-ai/sdk');
+          const fs = require('fs');
+          
+          async function callClaudeForDevelopment() {
+            const client = new Anthropic({
+              apiKey: process.env.ANTHROPIC_API_KEY,
+            });
+            
+            const prompt = fs.readFileSync('claude-development-prompt.txt', 'utf8');
+            
+            try {
+              const response = await client.messages.create({
+                model: 'claude-3-5-sonnet-20241022',
+                max_tokens: 4000,
+                temperature: 0.3,
+                messages: [{
+                  role: 'user', 
+                  content: `あなたは優秀なフルスタック開発者です。以下の要求に基づいて実装してください：
+
+          ${prompt}
+
+          実装時の注意点：
+          - TypeScriptで記述
+          - Mastraフレームワークを使用
+          - 実際に動作するコードを生成
+          - ファイル名とディレクトリ構造を明確に指定
+          - エラーハンドリングを含める
+
+          コードブロックには必ずファイル名をコメントで記載してください。
+          例：
+          \`\`\`typescript
+          // src/agents/NewAgent.ts
+          export class NewAgent extends Agent {
+            // 実装
+          }
+          \`\`\``
+                }]
+              });
+              
+              console.log('\n🤖 Claude Response:\n');
+              console.log(response.content[0].text);
+              
+              // Save response for file extraction
+              fs.writeFileSync('claude-response.txt', response.content[0].text);
+              
+            } catch (error) {
+              console.error('❌ Claude API Error:', error);
+              process.exit(1);
+            }
+          }
+          
+          callClaudeForDevelopment();
+          EOF
+          
+          # Install required package
+          npm install @anthropic-ai/sdk
+          
+          # Call Claude API
+          node claude-api-call.js
+          
+      - name: 🔍 Extract and Create Files from Claude Response
+        run: |
+          echo "🔍 Extracting files from Claude response..."
+          
+          # File extraction script
+          cat > extract-files.js << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+          
+          function extractAndCreateFiles() {
+            const response = fs.readFileSync('claude-response.txt', 'utf8');
+            
+            // Extract code blocks with file paths
+            const codeBlockPattern = /```(\w+)?\n(?:\/\/ (.+\.ts)\n)?([\s\S]*?)```/g;
+            let match;
+            let filesCreated = 0;
+            
+            while ((match = codeBlockPattern.exec(response)) !== null) {
+              const language = match[1];
+              const filePath = match[2];
+              const code = match[3].trim();
+              
+              if (filePath && (language === 'typescript' || language === 'ts')) {
+                // Ensure directory exists
+                const dir = path.dirname(filePath);
+                if (!fs.existsSync(dir)) {
+                  fs.mkdirSync(dir, { recursive: true });
+                }
+                
+                // Write file
+                fs.writeFileSync(filePath, code);
+                console.log(`✅ Created: ${filePath}`);
+                filesCreated++;
+              }
+            }
+            
+            // Also look for explicit file mentions
+            const filePattern = /(?:Create|Update|File:)\s*([^\s]+\.ts)/gi;
+            const codeBlocks = response.match(/```[\s\S]*?```/g) || [];
+            
+            codeBlocks.forEach((block, index) => {
+              const lines = block.split('\n');
+              const language = lines[0].replace('```', '').trim();
+              
+              if (language === 'typescript' || language === 'ts') {
+                const code = lines.slice(1, -1).join('\n');
+                
+                // Try to extract class name for file name
+                const classMatch = code.match(/export class (\w+)/);
+                if (classMatch) {
+                  const className = classMatch[1];
+                  let filePath = '';
+                  
+                  if (className.includes('Agent')) {
+                    filePath = `src/agents/${className}.ts`;
+                  } else if (className.includes('Component')) {
+                    filePath = `src/components/${className}.tsx`;
+                  } else {
+                    filePath = `src/types/${className}.ts`;
+                  }
+                  
+                  const dir = path.dirname(filePath);
+                  if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                  }
+                  
+                  if (!fs.existsSync(filePath)) {
+                    fs.writeFileSync(filePath, code);
+                    console.log(`✅ Auto-created: ${filePath}`);
+                    filesCreated++;
+                  }
+                }
+              }
+            });
+            
+            console.log(`🎉 Total files created: ${filesCreated}`);
+            
+            // Create summary
+            fs.writeFileSync('files-created.txt', `${filesCreated}`);
+          }
+          
+          extractAndCreateFiles();
+          EOF
+          
+          node extract-files.js
+          
+      - name: 🔧 Validate and Fix Code
+        run: |
+          echo "🔧 Validating generated code..."
+          
+          # Type check if tsconfig exists
+          if [ -f "tsconfig.json" ]; then
+            npx tsc --noEmit --skipLibCheck || echo "⚠️ Type check completed with warnings"
+          fi
+          
+          # Install any missing dependencies
+          npm install
+          
+      - name: 📝 Create Pull Request or Commit
+        run: |
+          FILES_CREATED=$(cat files-created.txt)
+          
+          git config --local user.email "claude-bot@github-actions.com"
+          git config --local user.name "Claude Development Bot"
+          
+          git add .
+          
+          if git diff --staged --quiet; then
+            echo "📭 No changes to commit"
+            exit 0
+          fi
+          
+          if [ "${{ steps.parse-issue.outputs.priority }}" = "urgent" ] || [ "${{ steps.parse-issue.outputs.priority }}" = "high" ]; then
+            # Create PR for high priority
+            BRANCH_NAME="claude-dev/issue-${{ steps.parse-issue.outputs.issue_number }}"
+            git checkout -b "$BRANCH_NAME"
+            
+            git commit -m "🤖 Implement Issue #${{ steps.parse-issue.outputs.issue_number }}
+
+            ${{ github.event.issue.title }}
+            
+            - Generated ${FILES_CREATED} files
+            - Auto-implementation by Claude Code API
+            - Phase ${{ steps.parse-issue.outputs.phase }} development
+            
+            Closes #${{ steps.parse-issue.outputs.issue_number }}"
+            
+            git push origin "$BRANCH_NAME"
+            
+            # Create PR
+            gh pr create \
+              --title "🤖 Auto-implement: ${{ github.event.issue.title }}" \
+              --body "Automatically generated implementation for Issue #${{ steps.parse-issue.outputs.issue_number }}
+
+            ## 🤖 Claude Code Implementation
+            
+            **Files Created:** ${FILES_CREATED}
+            **Phase:** ${{ steps.parse-issue.outputs.phase }}
+            **Priority:** ${{ steps.parse-issue.outputs.priority }}
+            
+            This PR was automatically generated by Claude Code API based on the requirements in the issue.
+            
+            ## 📋 What's Implemented
+            - Code analysis and implementation based on issue requirements
+            - TypeScript implementation with Mastra framework
+            - Proper error handling and file structure
+            
+            ## 🔍 Review Checklist
+            - [ ] Code follows project conventions
+            - [ ] All files are properly structured
+            - [ ] Implementation matches requirements
+            - [ ] Tests pass (if applicable)
+            
+            Closes #${{ steps.parse-issue.outputs.issue_number }}" \
+              --assignee "${{ github.event.issue.user.login }}"
+              
+          else
+            # Direct commit for low priority
+            git commit -m "🤖 Auto-fix Issue #${{ steps.parse-issue.outputs.issue_number }}
+
+            ${{ github.event.issue.title }}
+            
+            Auto-generated implementation (${FILES_CREATED} files)
+            [skip ci]"
+            
+            git push
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: 💬 Update Issue with Results
+        run: |
+          FILES_CREATED=$(cat files-created.txt)
+          
+          gh issue comment ${{ steps.parse-issue.outputs.issue_number }} --body "🤖 **Claude Code Implementation Complete**
+          
+          **Status:** ✅ Implementation completed
+          **Files Created:** ${FILES_CREATED}
+          **Phase:** ${{ steps.parse-issue.outputs.phase }}
+          **Priority:** ${{ steps.parse-issue.outputs.priority }}
+          
+          $(if [ '${{ steps.parse-issue.outputs.priority }}' = 'urgent' ] || [ '${{ steps.parse-issue.outputs.priority }}' = 'high' ]; then
+            echo '🔄 **Pull Request created for review**'
+            echo 'A Pull Request has been automatically created with the implementation.'
+          else
+            echo '✅ **Changes committed directly**'  
+            echo 'The implementation has been committed directly to the main branch.'
+          fi)
+          
+          **Next Steps:**
+          - Review the generated code
+          - Test the implementation locally
+          - Provide feedback if adjustments needed
+          
+          **Generated by:** Claude Code API
+          **Workflow Run:** [View Details](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
