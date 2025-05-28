@@ -7,7 +7,7 @@
 import { Agent } from '@mastra/core';
 import { anthropic } from '@ai-sdk/anthropic';
 import { CSVConfig } from '../types/csv';
-import { GeneratedReview } from '../types/review';
+import { GeneratedReview, GenerationParameters } from '../types/review';
 import { IntelligentQAKnowledgeAgent } from './IntelligentQAKnowledgeAgent';
 
 /**
@@ -100,6 +100,8 @@ export class IntegratedQualityManager extends Agent {
         qualityScore: overallQuality.score,
         isApproved: qaQuality.passed && overallQuality.score >= 0.7,
         generationParameters: {
+          temperature: 0.7,
+          maxTokens: 1000,
           ...review.generationParameters,
           qualityBreakdown: {
             basic: basicQuality,
