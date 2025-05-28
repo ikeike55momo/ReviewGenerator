@@ -176,7 +176,7 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
 
     // 入力をサニタイズ
     const sanitizedBody = sanitizeInput(req.body);
-    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = sanitizedBody;
+    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = sanitizedBody as GenerateReviewsRequest;
 
     // パラメータのパースとバリデーション
     const paramValidation = parseAndValidateParams({ body: { reviewCount } } as NextApiRequest);

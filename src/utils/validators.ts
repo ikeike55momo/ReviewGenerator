@@ -12,7 +12,7 @@
  * - API パラメータのバリデーション
  */
 
-import { ReviewRequest, GenerationParameters, CSVConfig, UploadedFile, BatchGenerationRequest } from '../types/review';
+import { ReviewRequest, GenerationParameters, CSVFileConfig, UploadedFile, BatchGenerationRequest } from '../types/review';
 import { CSVConfig as CSVDataConfig, BasicRule, HumanPattern, QAKnowledge, SuccessExample } from '../types/csv';
 
 /**
@@ -225,7 +225,7 @@ export function validateCSVDataConfig(config: any): ValidationResult {
 /**
  * CSV 設定のバリデーション（review.ts型用、レガシー）
  */
-export function validateCSVConfig(config: CSVConfig): ValidationResult {
+export function validateCSVFileConfig(config: CSVFileConfig): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -313,7 +313,7 @@ export function validateBatchGenerationRequest(request: BatchGenerationRequest):
     const warnings: string[] = [];
 
     // CSV設定の検証
-    const csvValidation = validateCSVConfig(request.csvConfig);
+    const csvValidation = validateCSVFileConfig(request.csvConfig);
     if (!csvValidation.isValid) {
         errors.push(...csvValidation.errors.map(err => `CSV Config: ${err}`));
     }
