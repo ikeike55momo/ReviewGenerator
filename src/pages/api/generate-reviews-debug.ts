@@ -4,7 +4,7 @@
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { CSVConfig } from '../../types/csv';
-import { GeneratedReview } from '../../types/review';
+import { GeneratedReview, GenerationParameters } from '../../types/review';
 
 export const config = {
   maxDuration: 120, // 2分
@@ -317,7 +317,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         selectedElements: selectedElements,
         mode: 'debug',
         timestamp: new Date().toISOString()
-      },
+      } as unknown as GenerationParameters,
       csvFileIds: [],
       isApproved: true
     }];
