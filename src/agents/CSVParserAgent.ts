@@ -109,11 +109,46 @@ export class CSVParserAgent extends Agent {
         }
       }
 
+      // 型変換を行ってCSVConfigに適合させる
+      const convertedBasicRules = basicRules.map(row => ({
+        category: row.category || '',
+        type: row.type || '',
+        content: row.content || ''
+      }));
+
+      const convertedHumanPatterns = humanPatterns.map(row => ({
+        age_group: row.age_group || '',
+        personality_type: row.personality_type || '',
+        vocabulary: row.vocabulary || '',
+        exclamation_marks: row.exclamation_marks || '',
+        characteristics: row.characteristics || '',
+        example: row.example || ''
+      }));
+
+      const convertedQaKnowledge = qaKnowledge.map(row => ({
+        question: row.question || '',
+        answer: row.answer || '',
+        category: row.category || '',
+        priority: row.priority || '',
+        example_situation: row.example_situation || '',
+        example_before: row.example_before || '',
+        example_after: row.example_after || ''
+      }));
+
+      const convertedSuccessExamples = successExamples.map(row => ({
+        review: row.review || '',
+        age: row.age || '',
+        gender: row.gender || '',
+        companion: row.companion || '',
+        word: row.word || '',
+        recommend: row.recommend || ''
+      }));
+
       return {
-        basicRules,
-        humanPatterns,
-        qaKnowledge,
-        successExamples
+        basicRules: convertedBasicRules,
+        humanPatterns: convertedHumanPatterns,
+        qaKnowledge: convertedQaKnowledge,
+        successExamples: convertedSuccessExamples
       };
     } catch (error) {
       if (error instanceof Error) {

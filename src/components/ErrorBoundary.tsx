@@ -93,8 +93,7 @@ export class ErrorBoundary extends Component<Props, State> {
                     エラー詳細（開発環境のみ）:
                   </p>
                   <pre className="text-xs text-muted-foreground overflow-auto max-h-32">
-                    {this.state.error.toString()}
-                    {this.state.errorInfo?.componentStack}
+                    {this.state.error.message}
                   </pre>
                 </div>
               )}

@@ -1,22 +1,25 @@
 /**
- * Supabaseクライアント設定
+ * Supabaseクライアント設定（コネクションプール統合版）
  * 
  * 概要:
  * - Supabaseデータベースへの接続設定
+ * - コネクションプール統合
  * - 環境変数からの設定読み込み
  * - TypeScript型定義
  * 
  * 主な機能:
  * - Supabaseクライアントインスタンス作成
+ * - コネクションプール管理
  * - 環境変数バリデーション
  * - エラーハンドリング
  * 
  * 制限事項:
  * - 環境変数が設定されていない場合はエラー
- * - ブラウザ環境でのみ動作
+ * - サーバーサイドでは最適化されたプールを使用
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { getConnectionPool, getPoolStats } from './database-pool';
 
 // 環境変数の型定義
 interface SupabaseConfig {
@@ -90,27 +93,59 @@ export const supabaseAdmin = config.serviceRoleKey
   : null;
 
 /**
- * データベース接続テスト
+ * データベース接続テスト（コネクションプール使用）
  * @returns {Promise<boolean>} 接続成功時はtrue
  */
 export const testConnection = async (): Promise<boolean> => {
   try {
-    const { data, error } = await supabase
-      .from('system_settings')
-      .select('setting_key')
-      .limit(1);
+    // サーバーサイドの場合はコネクションプールを使用
+    if (typeof window === 'undefined') {
+      const pool = getConnectionPool();
+      const result = await pool.executeWithRetry(async (client) => {
+        const { data, error } = await client
+          .from('system_settings')
+          .select('setting_key')
+          .limit(1);
+        
+        if (error) {
+          throw new Error(error.message);
+        }
+        
+        return data;
+      });
+      
+      console.log('Supabase接続成功（プール使用）');
+      return true;
+    } else {
+      // クライアントサイドは従来通り
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('setting_key')
+        .limit(1);
 
-    if (error) {
-      console.error('Supabase接続エラー:', error.message);
-      return false;
+      if (error) {
+        console.error('Supabase接続エラー:', error.message);
+        return false;
+      }
+
+      console.log('Supabase接続成功');
+      return true;
     }
-
-    console.log('Supabase接続成功');
-    return true;
   } catch (error) {
     console.error('Supabase接続テストエラー:', error);
     return false;
   }
+};
+
+/**
+ * コネクションプール統計情報の取得
+ * @returns {Promise<object>} プール統計情報
+ */
+export const getConnectionStats = async () => {
+  if (typeof window === 'undefined') {
+    return getPoolStats();
+  }
+  return null;
 };
 
 /**

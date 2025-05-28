@@ -59,9 +59,10 @@ export interface GenerationParameters {
 }
 
 /**
- * CSV 設定型定義
+ * CSV ファイル設定型定義（レガシー）
+ * @deprecated Use CSVDataConfig from csv.ts instead
  */
-export interface CSVConfig {
+export interface CSVFileConfig {
     uploadedFiles: UploadedFile[];
     delimiter?: string;
     encoding?: string;
@@ -143,7 +144,7 @@ export interface GenerationBatch {
  * バッチ生成リクエスト
  */
 export interface BatchGenerationRequest {
-    csvConfig: CSVConfig;
+    csvConfig: CSVFileConfig;
     batchSize: number;
     batchCount: number;
     customPrompt?: string;

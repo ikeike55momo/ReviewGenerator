@@ -4,7 +4,7 @@
  * CSV駆動型AI創作システム - バッチ管理・履歴保存対応
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { CSVConfig, BasicRule } from '../../types/csv';
+import { CSVConfig } from '../../types/csv';
 import { GeneratedReview } from '../../types/review';
 import { 
   createGenerationBatch, 
@@ -12,8 +12,6 @@ import {
   saveGeneratedReview,
   logQualityCheck 
 } from '../../utils/database';
-import { loadDefaultCSVConfig, validateCSVConfig } from '../../utils/csv-loader';
-import { validateCSVDataConfig } from '../../utils/validators';
 // import https from 'https'; // Netlify Functionsでは使用しない
 
 interface GenerateReviewsRequest {
@@ -1041,8 +1039,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('📥 リクエストボディ解析開始:', { bodyType: typeof req.body });
     
-    const { reviewCount, customPrompt, batchName, saveToDB, existingTexts, existingWordCombinations }: GenerateReviewsRequest = req.body;
-    let csvConfig = req.body.csvConfig;
+    const { csvConfig, reviewCount, customPrompt, batchName, saveToDB, existingTexts, existingWordCombinations }: GenerateReviewsRequest = req.body;
 
     console.log('📊 パラメータ確認:', {
       hasCsvConfig: !!csvConfig,
@@ -1061,42 +1058,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         details: { csvConfig: !!csvConfig, reviewCount: !!reviewCount }
       });
     }
-
-    // CSV設定の詳細バリデーション
-    console.log('🔍 CSV設定バリデーション開始');
-    const csvValidation = validateCSVDataConfig(csvConfig);
-    if (!csvValidation.isValid) {
-      console.error('❌ CSV設定バリデーションエラー:', csvValidation.errors);
-      
-      // フォールバック：デフォルトCSVファイルを読み込み
-      console.log('🔄 デフォルトCSVファイルへのフォールバック開始');
-      try {
-        const defaultCSVConfig = await loadDefaultCSVConfig();
-        console.log('✅ デフォルトCSVファイル読み込み成功');
-        
-        // デフォルトCSVConfigで置き換え
-        csvConfig = defaultCSVConfig;
-        
-        // デフォルトCSVConfigの再バリデーション
-        const defaultValidation = validateCSVDataConfig(csvConfig);
-        if (!defaultValidation.isValid) {
-          console.error('❌ デフォルトCSV設定もバリデーションエラー:', defaultValidation.errors);
-          return res.status(500).json({ 
-            error: 'Default CSV configuration is also invalid',
-            details: defaultValidation.errors
-          });
-        }
-        
-      } catch (defaultError) {
-        console.error('❌ デフォルトCSVファイル読み込みエラー:', defaultError);
-        return res.status(500).json({ 
-          error: 'Failed to load default CSV configuration',
-          details: defaultError instanceof Error ? defaultError.message : 'Unknown error',
-          originalErrors: csvValidation.errors
-        });
-      }
-    }
-    console.log('✅ CSV設定バリデーション完了');
 
     if (reviewCount < 1 || reviewCount > 100) {
       console.error('❌ reviewCount範囲エラー:', reviewCount);
@@ -1117,37 +1078,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     console.log('✅ 環境変数チェック完了:', { 
-      hasAnthropicKey: !!anthropicApiKey,
-      keyLength: anthropicApiKey?.length || 0
+      hasAnthropicKey: !!anthropicApiKey
     });
 
     // レビュー生成開始
     const generatedReviews: GeneratedReview[] = [];
-    const generatedTexts: string[] = []; // 重複チェック用（配列で管理）
-    const usedWordCombinations: string[] = []; // ワード組み合わせ重複防止用
+    const generatedTexts = new Set<string>(); // 重複チェック用（Setで効率化）
+    const usedWordCombinations = new Set<string>(); // ワード組み合わせ重複防止用（Setで効率化）
     
-    // データベースから既存のレビューを取得してグローバル重複チェック
-    let existingReviews: string[] = [];
+    // データベースから既存のレビューを取得してグローバル重複チェック（制限あり）
+    const existingReviews = new Set<string>();
     if (saveToDB) {
       try {
-        const { getExistingReviews } = await import('../../utils/database');
-        existingReviews = await getExistingReviews();
-        console.log(`📚 既存レビュー取得: ${existingReviews.length}件`);
+        const { getExistingReviewsPaginated } = await import('../../utils/database');
+        // 最大1000件に制限してメモリ効率化
+        const result = await getExistingReviewsPaginated({ page: 1, limit: Math.min(1000, reviewCount * 5) });
+        result.reviews.forEach(review => existingReviews.add(review));
+        console.log(`📚 既存レビュー取得: ${existingReviews.size}件`);
       } catch (error) {
         console.warn('⚠️ 既存レビュー取得エラー:', error);
       }
     }
     
-    // バッチ間重複防止：既存テキストをマージ
+    // バッチ間重複防止：既存テキストをマージ（制限あり）
     if (existingTexts && existingTexts.length > 0) {
-      existingReviews = [...existingReviews, ...existingTexts];
-      console.log(`🔄 バッチ間重複防止: +${existingTexts.length}件追加 (総計: ${existingReviews.length}件)`);
+      existingTexts.slice(0, 1000).forEach(text => existingReviews.add(text)); // 最大1000件に制限
+      console.log(`🔄 バッチ間重複防止: +${Math.min(existingTexts.length, 1000)}件追加 (総計: ${existingReviews.size}件)`);
     }
     
-    // バッチ間ワード組み合わせ重複防止：既存ワード組み合わせをマージ
+    // バッチ間ワード組み合わせ重複防止：既存ワード組み合わせをマージ（制限あり）
     if (existingWordCombinations && existingWordCombinations.length > 0) {
-      usedWordCombinations.push(...existingWordCombinations);
-      console.log(`🔄 ワード組み合わせ重複防止: +${existingWordCombinations.length}件追加 (総計: ${usedWordCombinations.length}件)`);
+      existingWordCombinations.slice(0, 1000).forEach(combo => usedWordCombinations.add(combo)); // 最大1000件に制限
+      console.log(`🔄 ワード組み合わせ重複防止: +${Math.min(existingWordCombinations.length, 1000)}件追加 (総計: ${usedWordCombinations.size}件)`);
     }
     
     console.log(`🚀 ${reviewCount}件のAI創作レビュー生成開始`);
@@ -1203,12 +1165,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           
           // 使用可能ワードの完全リスト表示（デバッグ用）
           const availableWords = {
-            areas: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'area')?.map((rule: BasicRule) => rule.content) || [],
-            businessTypes: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'business_type')?.map((rule: BasicRule) => rule.content) || [],
-            usps: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'usp')?.map((rule: BasicRule) => rule.content) || [],
-            environments: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'environment')?.map((rule: BasicRule) => rule.content) || [],
-            subs: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'sub')?.map((rule: BasicRule) => rule.content) || [],
-            recommendations: csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'recommendation_phrases')?.map((rule: BasicRule) => rule.content) || []
+            areas: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [],
+            businessTypes: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [],
+            usps: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'usp')?.map(rule => rule.content) || [],
+            environments: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [],
+            subs: csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'sub')?.map(rule => rule.content) || [],
+            recommendations: csvConfig.basicRules?.filter(rule => rule.category === 'recommendation_phrases')?.map(rule => rule.content) || []
           };
           
           console.log(`🎯 選択された要素 (レビュー ${i + 1}):`, {
@@ -1230,9 +1192,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           });
           
           // CSV要素の整合性チェック（スコープ内の変数を使用）
-          const currentAreas = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'area')?.map((rule: BasicRule) => rule.content) || [];
-          const currentBusinessTypes = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'business_type')?.map((rule: BasicRule) => rule.content) || [];
-          const currentEnvironments = csvConfig.basicRules?.filter((rule: BasicRule) => rule.category === 'required_elements' && rule.type === 'environment')?.map((rule: BasicRule) => rule.content) || [];
+          const currentAreas = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'area')?.map(rule => rule.content) || [];
+          const currentBusinessTypes = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'business_type')?.map(rule => rule.content) || [];
+          const currentEnvironments = csvConfig.basicRules?.filter(rule => rule.category === 'required_elements' && rule.type === 'environment')?.map(rule => rule.content) || [];
           
           console.log(`🔍 CSV要素整合性チェック:`, {
             areaValid: currentAreas.includes(promptResult.selectedArea),
@@ -1272,13 +1234,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
           
           // Claudeの創作力を信頼（重複チェック最小化）
-          const allExistingTexts = [...existingReviews, ...generatedTexts];
-          const isExactDuplicate = allExistingTexts.some(existing => 
-            existing.trim() === reviewText.trim()
-          );
+          const trimmedReviewText = reviewText.trim();
+          const isExactDuplicate = existingReviews.has(trimmedReviewText) || generatedTexts.has(trimmedReviewText);
           
           if (!isExactDuplicate) {
-            generatedTexts.push(reviewText);
+            generatedTexts.add(trimmedReviewText);
             finalPromptResult = promptResult;
             finalRandomPattern = randomPattern;
             console.log(`✅ レビュー生成成功 (試行${attempts}回目) - 文字数: ${reviewText.length}`);
