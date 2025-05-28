@@ -1,6 +1,6 @@
 /**
  * @file generate-reviews-simple.ts
- * @description シンプル版レビュー生成APIエンドポイント（重複チェックなし・複数件対応）
+ * @description シンプル版レビュー生成APIエンドポイント（統合バリデーション・コネクションプール対応）
  */
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { CSVConfig } from '../../types/csv';
@@ -16,6 +16,8 @@ import {
   sanitizeInput
 } from '../../utils/api-common';
 import { validateCSVDataConfig, validateGenerationParameters } from '../../utils/validators';
+import { ValidationHelper, CSVConfigSchema } from '../../schemas/validation';
+import { getConnectionPool } from '../../config/database-pool';
 
 export const config = {
   maxDuration: 300, // 5分
@@ -186,8 +188,8 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
       );
     }
 
-    // CSV設定のバリデーション
-    console.log('🔍 CSV設定バリデーション開始:', {
+    // CSV設定の統合バリデーション（Zodスキーマ使用）
+    console.log('🔍 CSV設定バリデーション開始（Zodスキーマ使用）:', {
       csvConfigType: typeof csvConfig,
       hasBasicRules: !!csvConfig?.basicRules,
       hasHumanPatterns: !!csvConfig?.humanPatterns,
@@ -197,6 +199,16 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
       humanPatternsLength: csvConfig?.humanPatterns?.length || 0
     });
 
+    // 新しいZodスキーマでの検証
+    const zodValidation = ValidationHelper.validate(CSVConfigSchema, csvConfig);
+    if (!zodValidation.success) {
+      console.error('❌ Zodスキーマバリデーションエラー:', zodValidation.issues);
+      return sendResponse(res, HTTP_STATUS.BAD_REQUEST,
+        createErrorResponse('VALIDATION_ERROR', 'CSV設定が無効です', ValidationHelper.formatErrorMessages(zodValidation.issues))
+      );
+    }
+
+    // レガシーバリデーションも実行（一時的な互換性確保）
     const csvValidation = validateCSVDataConfig(csvConfig);
     if (!csvValidation.isValid) {
       console.error('❌ CSV設定バリデーションエラー:', csvValidation.errors);
