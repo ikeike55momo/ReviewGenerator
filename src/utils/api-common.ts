@@ -341,8 +341,14 @@ export function validateContentType(req: NextApiRequest): boolean {
 /**
  * CORS ヘッダーを設定
  */
-export function setCorsHeaders(res: NextApiResponse, allowedOrigins: string[] = ['*']): void {
-  const origin = allowedOrigins.includes('*') ? '*' : allowedOrigins[0];
+export function setCorsHeaders(res: NextApiResponse, allowedOrigins: string[] = []): void {
+  // 本番環境では具体的なオリジンのみ許可
+  const defaultOrigins = process.env.NODE_ENV === 'production' 
+    ? [process.env.FRONTEND_URL || 'https://your-domain.com'].filter(Boolean)
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  
+  const origins = allowedOrigins.length > 0 ? allowedOrigins : defaultOrigins;
+  const origin = origins.includes('*') && process.env.NODE_ENV !== 'production' ? '*' : origins[0];
   
   res.setHeader('Access-Control-Allow-Origin', origin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');

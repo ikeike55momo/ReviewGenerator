@@ -1078,38 +1078,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     console.log('✅ 環境変数チェック完了:', { 
-      hasAnthropicKey: !!anthropicApiKey,
-      keyLength: anthropicApiKey?.length || 0
+      hasAnthropicKey: !!anthropicApiKey
     });
 
     // レビュー生成開始
     const generatedReviews: GeneratedReview[] = [];
-    const generatedTexts: string[] = []; // 重複チェック用（配列で管理）
-    const usedWordCombinations: string[] = []; // ワード組み合わせ重複防止用
+    const generatedTexts = new Set<string>(); // 重複チェック用（Setで効率化）
+    const usedWordCombinations = new Set<string>(); // ワード組み合わせ重複防止用（Setで効率化）
     
-    // データベースから既存のレビューを取得してグローバル重複チェック
-    let existingReviews: string[] = [];
+    // データベースから既存のレビューを取得してグローバル重複チェック（制限あり）
+    const existingReviews = new Set<string>();
     if (saveToDB) {
       try {
         const { getExistingReviewsPaginated } = await import('../../utils/database');
-        const result = await getExistingReviewsPaginated({ page: 1, limit: 100 });
-        existingReviews = result.reviews;
-        console.log(`📚 既存レビュー取得: ${existingReviews.length}件`);
+        // 最大1000件に制限してメモリ効率化
+        const result = await getExistingReviewsPaginated({ page: 1, limit: Math.min(1000, reviewCount * 5) });
+        result.reviews.forEach(review => existingReviews.add(review));
+        console.log(`📚 既存レビュー取得: ${existingReviews.size}件`);
       } catch (error) {
         console.warn('⚠️ 既存レビュー取得エラー:', error);
       }
     }
     
-    // バッチ間重複防止：既存テキストをマージ
+    // バッチ間重複防止：既存テキストをマージ（制限あり）
     if (existingTexts && existingTexts.length > 0) {
-      existingReviews = [...existingReviews, ...existingTexts];
-      console.log(`🔄 バッチ間重複防止: +${existingTexts.length}件追加 (総計: ${existingReviews.length}件)`);
+      existingTexts.slice(0, 1000).forEach(text => existingReviews.add(text)); // 最大1000件に制限
+      console.log(`🔄 バッチ間重複防止: +${Math.min(existingTexts.length, 1000)}件追加 (総計: ${existingReviews.size}件)`);
     }
     
-    // バッチ間ワード組み合わせ重複防止：既存ワード組み合わせをマージ
+    // バッチ間ワード組み合わせ重複防止：既存ワード組み合わせをマージ（制限あり）
     if (existingWordCombinations && existingWordCombinations.length > 0) {
-      usedWordCombinations.push(...existingWordCombinations);
-      console.log(`🔄 ワード組み合わせ重複防止: +${existingWordCombinations.length}件追加 (総計: ${usedWordCombinations.length}件)`);
+      existingWordCombinations.slice(0, 1000).forEach(combo => usedWordCombinations.add(combo)); // 最大1000件に制限
+      console.log(`🔄 ワード組み合わせ重複防止: +${Math.min(existingWordCombinations.length, 1000)}件追加 (総計: ${usedWordCombinations.size}件)`);
     }
     
     console.log(`🚀 ${reviewCount}件のAI創作レビュー生成開始`);
@@ -1234,13 +1234,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           }
           
           // Claudeの創作力を信頼（重複チェック最小化）
-          const allExistingTexts = [...existingReviews, ...generatedTexts];
-          const isExactDuplicate = allExistingTexts.some(existing => 
-            existing.trim() === reviewText.trim()
-          );
+          const trimmedReviewText = reviewText.trim();
+          const isExactDuplicate = existingReviews.has(trimmedReviewText) || generatedTexts.has(trimmedReviewText);
           
           if (!isExactDuplicate) {
-            generatedTexts.push(reviewText);
+            generatedTexts.add(trimmedReviewText);
             finalPromptResult = promptResult;
             finalRandomPattern = randomPattern;
             console.log(`✅ レビュー生成成功 (試行${attempts}回目) - 文字数: ${reviewText.length}`);
