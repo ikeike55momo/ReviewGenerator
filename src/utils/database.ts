@@ -563,30 +563,8 @@ export const getExistingReviewsPaginated = async (page: number = 0, pageSize: nu
  * @returns {Promise<string[]>} 既存レビューテキスト一覧
  * @deprecated getExistingReviewsPaginated を使用してください
  */
-export const getExistingReviews = async (limit: number = 100): Promise<string[]> => {
-  // セーフガード: 最大値を制限
-  const safeLimit = Math.min(limit, 1000);
-  
-  try {
-    console.log(`📚 既存レビュー取得開始 (制限: ${safeLimit}件) - DEPRECATED: getExistingReviewsPaginated を使用してください`);
-    
-    const { data, error, count } = await supabase
-      .from(TABLES.GENERATED_REVIEWS)
-      .select('review_text', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .limit(safeLimit);
-
-    if (error) {
-      throw new Error(`既存レビュー取得エラー: ${error.message}`);
-    }
-
-    console.log(`✅ 既存レビュー取得完了: ${data.length}件 (総件数: ${count}件)`);
-    return data.map(review => review.review_text);
-  } catch (error) {
-    console.error('既存レビュー取得エラー:', error);
-    return []; // エラー時は空配列を返す
-  }
-};
+// 削除済み: getExistingReviews() 関数は非推奨のため削除
+// 代替として getExistingReviewsPaginated() を使用してください
 
 /**
  * 生成バッチを削除（関連するレビューも削除）

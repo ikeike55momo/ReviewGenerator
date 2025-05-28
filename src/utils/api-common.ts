@@ -13,15 +13,15 @@ import { validateReviewRequest, validateGenerationParameters, ValidationResult }
 import { ReviewRequest, GenerationParameters } from '../types/review';
 
 /**
- * 標準APIレスポンス型
+ * 標準APIレスポンス型（型安全性改善）
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: {
     code: string;
     message: string;
-    details?: any;
+    details?: Record<string, unknown>;
   };
   metadata?: {
     timestamp: string;
@@ -389,20 +389,25 @@ export function handleAIServiceError(error: any): ApiResponse {
 }
 
 /**
- * 入力サニタイゼーション
+ * 入力サニタイゼーション（改善版）
  */
-export function sanitizeInput(input: any): any {
+export function sanitizeInput(input: unknown): unknown {
   if (typeof input === 'string') {
-    // HTMLタグを除去
-    return input.replace(/<[^>]*>/g, '').trim();
+    return input
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '') // script tags
+      .replace(/<[^>]*>/g, '') // HTML tags
+      .replace(/javascript:/gi, '') // javascript: URLs
+      .replace(/on\w+\s*=/gi, '') // event handlers
+      .replace(/data:/gi, '') // data URLs
+      .trim();
   }
   
   if (Array.isArray(input)) {
     return input.map(sanitizeInput);
   }
   
-  if (input && typeof input === 'object') {
-    const sanitized: any = {};
+  if (input && typeof input === 'object' && input !== null) {
+    const sanitized: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(input)) {
       sanitized[key] = sanitizeInput(value);
     }
