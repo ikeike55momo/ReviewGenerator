@@ -10,10 +10,16 @@ on:
   pull_request_review:
     types: [submitted]
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: read
+  checks: read
+
 jobs:
   claude-response:
     runs-on: ubuntu-latest
-    # 公式推奨：claude-dev ラベルまたは @claude メンション
     if: |
       contains(github.event.issue.labels.*.name, 'claude-dev') ||
       contains(github.event.issue.labels.*.name, 'claude-fix') ||
@@ -21,9 +27,13 @@ jobs:
       contains(github.event.issue.body, '@claude')
     
     steps:
+      - name: 🚀 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: 🤖 Claude Code Action
         uses: anthropics/claude-code-action@beta
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # 自動でIssue/PRの内容を読み取り、適切な対応を実行
