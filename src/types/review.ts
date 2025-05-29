@@ -119,6 +119,11 @@ export interface GeneratedReview {
     isApproved?: boolean;
     createdAt?: string;
     updatedAt?: string;
+    
+    // CSV出力用フィールド
+    companion?: string;  // 同伴者情報（一人、パートナー、友人等）
+    word?: string;       // 文体タイプ（High型、Medium型、Low型等）
+    recommend?: string;  // 推奨フレーズ（日本酒好きに、二次会に等）
 }
 
 /**

@@ -32,6 +32,7 @@ export class ReviewGeneratorAgent extends Agent {
       });
       const textBlock = response.content.find(block => block.type === 'text');
       const text = textBlock && 'text' in textBlock ? textBlock.text : '';
+      
       return {
         reviewText: text,
         rating: 5, // デフォルト値
@@ -39,7 +40,11 @@ export class ReviewGeneratorAgent extends Agent {
         reviewerGender: 'other', // デフォルト値
         qualityScore: 0, // Will be set by QualityControllerAgent
         csvFileIds: [],
-        generationPrompt: prompt
+        generationPrompt: prompt,
+        // CSV出力用フィールド
+        companion: request.companion === 'alone' ? '一人' : request.companion || '一人',
+        word: request.word || '', // 実際の使用ワードはDynamicPromptBuilderAgentで設定されるべき
+        recommend: request.recommend || '日本酒好きに'
       };
     } catch (error) {
       if (error instanceof Error) {

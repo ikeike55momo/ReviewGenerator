@@ -7,12 +7,14 @@
 import React, { useState } from 'react';
 
 interface ReviewGeneratorProps {
-  onGenerate: (reviewCount: number, customPrompt?: string) => void;
+  onGenerate: (reviewCount: number, customPrompt?: string, ageDistribution?: string, genderDistribution?: string) => void;
   isGenerating: boolean;
 }
 
 export const ReviewGenerator: React.FC<ReviewGeneratorProps> = ({ onGenerate, isGenerating }) => {
   const [reviewCount, setReviewCount] = useState<number>(10);
+  const [ageDistribution, setAgeDistribution] = useState<string>('auto');
+  const [genderDistribution, setGenderDistribution] = useState<string>('auto');
   const [customPrompt, setCustomPrompt] = useState<string>(`🎯 CSV駆動自然口コミ生成システム - メインプロンプト
 
 📋 重要前提
@@ -92,6 +94,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
   const handleGenerate = () => {
     console.log('🎯 ReviewGenerator handleGenerate 開始:', { 
       reviewCount, 
+      ageDistribution,
+      genderDistribution,
       isGenerating, 
       customPromptLength: customPrompt.length 
     });
@@ -101,8 +105,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
       return;
     }
     
-    console.log('📞 onGenerate呼び出し:', { reviewCount, customPrompt: customPrompt.substring(0, 100) + '...' });
-    onGenerate(reviewCount, customPrompt);
+    console.log('📞 onGenerate呼び出し:', { reviewCount, ageDistribution, genderDistribution });
+    onGenerate(reviewCount, customPrompt, ageDistribution, genderDistribution);
   };
 
   return (
@@ -164,6 +168,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
               年齢層分布
             </label>
             <select
+              value={ageDistribution}
+              onChange={(e) => setAgeDistribution(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
               disabled={isGenerating}
             >
@@ -180,6 +186,8 @@ OK例：「楽しめました」「体験できました」「満足できる内
               性別分布
             </label>
             <select
+              value={genderDistribution}
+              onChange={(e) => setGenderDistribution(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
               disabled={isGenerating}
             >

@@ -27,6 +27,8 @@ interface GenerateReviewsRequest {
   csvConfig: CSVConfig;
   reviewCount: number;
   customPrompt?: string;
+  ageDistribution?: string;
+  genderDistribution?: string;
 }
 
 /**
@@ -36,54 +38,275 @@ function buildSimplePrompt(csvConfig: CSVConfig, selectedPattern: any, index: nu
   prompt: string;
   selectedElements: any;
 } {
-  const { basicRules } = csvConfig;
+  const { basicRules, qaKnowledge, successExamples } = csvConfig;
   
-  // CSV設定から基本情報を抽出（エラーハンドリング強化）
+  // CSV設定から基本情報を抽出
   let selectedArea = '池袋西口';
   let selectedBusinessType = 'SHOGUN BAR';
   let selectedUSP = '';
+  let selectedSub = '';
+  let selectedEnvironment = '';
+  
+  // ルール分類用の配列（実際のCSV構造に対応）
+  let requiredElements: string[] = [];
+  let prohibitedExpressions: string[] = [];
+  let recommendationPhrases: string[] = [];
+  let humannessKeyPoints: string[] = [];
+  let outputFormat = '';
+  
+  // 循環選択用のリスト
+  let areaList: string[] = [];
+  let businessTypeList: string[] = [];
+  let uspList: string[] = [];
+  let subElementsList: string[] = [];
+  let environmentList: string[] = [];
+
+  // 文字数を年代に応じて調整（150-400字の幅確保）
+  const ageDecade = parseInt(selectedPattern.age_group?.replace('代', '') || '30');
+  let targetLength = 200;
+  
+  // より幅広い文字数範囲を設定（150-400字）
+  const lengthVariations = [150, 180, 220, 250, 280, 320, 350, 400];
+  targetLength = lengthVariations[index % lengthVariations.length];
+  
+  // 年代による基本調整も維持
+  if (ageDecade <= 20) {
+    targetLength = Math.max(150, Math.min(300, targetLength - 20));
+  } else if (ageDecade >= 50) {
+    targetLength = Math.max(200, Math.min(400, targetLength + 30));
+  }
 
   try {
     if (basicRules && Array.isArray(basicRules)) {
-      const areas = basicRules.filter((rule: any) => rule.category === 'required_elements' && rule.type === 'area');
-      if (areas.length > 0) {
-        selectedArea = areas[index % areas.length].content; // インデックスベースで選択
-      }
-
-      const businessTypes = basicRules.filter((rule: any) => rule.category === 'required_elements' && rule.type === 'business_type');
-      if (businessTypes.length > 0) {
-        selectedBusinessType = businessTypes[index % businessTypes.length].content;
-      }
-
-      const usps = basicRules.filter((rule: any) => rule.category === 'required_elements' && rule.type === 'usp');
-      if (usps.length > 0) {
-        selectedUSP = usps[index % usps.length].content;
-      }
+      basicRules.forEach((rule: any) => {
+        if (!rule.content || !rule.type || !rule.category) return;
+        
+        switch (rule.category) {
+          case 'required_elements':
+            switch (rule.type) {
+              case 'area':
+                areaList.push(rule.content);
+                break;
+              case 'business_type':
+                businessTypeList.push(rule.content);
+                break;
+              case 'usp':
+                uspList.push(rule.content);
+                break;
+              case 'sub':
+                subElementsList.push(rule.content);
+                break;
+              case 'environment':
+                environmentList.push(rule.content);
+                break;
+            }
+            break;
+            
+          case 'prohibited_expressions':
+            prohibitedExpressions.push(rule.content);
+            break;
+            
+          case 'recommendation_phrases':
+            if (rule.type === 'phrase') {
+              recommendationPhrases.push(rule.content);
+            }
+            break;
+            
+          case 'humanness_points':
+            if (rule.type === 'key_point') {
+              humannessKeyPoints.push(rule.content);
+            }
+            break;
+            
+          case 'output_format':
+            if (rule.type === 'format') {
+              outputFormat = rule.content;
+            }
+            break;
+        }
+      });
     }
+    
+    // エリアを循環的に選択（多様性確保）
+    if (areaList.length > 0) {
+      selectedArea = areaList[index % areaList.length];
+      requiredElements.push(`エリア: ${selectedArea}`);
+    }
+    
+    // 業種を循環的に選択（多様性確保）
+    if (businessTypeList.length > 0) {
+      selectedBusinessType = businessTypeList[index % businessTypeList.length];
+      requiredElements.push(`業種: ${selectedBusinessType}`);
+    }
+    
+    // USP選択とサブワード選択でtargetLengthを使用
+    try {
+      // USPを循環的に選択（長文時は複数使用可能）
+      if (uspList.length > 0) {
+        selectedUSP = uspList[index % uspList.length];
+        requiredElements.push(`特徴: ${selectedUSP}`);
+        
+        // 長文（300字以上）の場合は追加USPも選択
+        const isLongText = targetLength >= 300;
+        if (isLongText && uspList.length > 1) {
+          const additionalUspIndex = (index + 1) % uspList.length;
+          if (additionalUspIndex !== index % uspList.length) {
+            const additionalUSP = uspList[additionalUspIndex];
+            selectedUSP += `, ${additionalUSP}`;
+            requiredElements.push(`追加特徴: ${additionalUSP}`);
+          }
+        }
+      }
+      
+      // サブ要素を自由使用（自然さ優先）
+      if (subElementsList.length > 0) {
+        // 短文: 1-2個、中文: 2-4個、長文: 3-6個
+        let selectedSubCount = 2;
+        if (targetLength >= 300) selectedSubCount = Math.min(6, subElementsList.length);
+        else if (targetLength >= 220) selectedSubCount = Math.min(4, subElementsList.length);
+        else selectedSubCount = Math.min(2, subElementsList.length);
+        
+        for (let i = 0; i < selectedSubCount; i++) {
+          const subIndex = (index + i) % subElementsList.length;
+          selectedSub += (i > 0 ? ', ' : '') + subElementsList[subIndex];
+        }
+        if (selectedSub) {
+          requiredElements.push(`関連要素: ${selectedSub}`);
+        }
+      }
+
+      // 環境要素を1-2個選択（インデックスベース）
+      if (environmentList.length > 0) {
+        const selectedEnvCount = Math.min(2, Math.max(1, Math.floor(environmentList.length / 2)));
+        for (let i = 0; i < selectedEnvCount; i++) {
+          const envIndex = (index + i) % environmentList.length;
+          selectedEnvironment += (i > 0 ? ', ' : '') + environmentList[envIndex];
+        }
+        if (selectedEnvironment) {
+          requiredElements.push(`環境: ${selectedEnvironment}`);
+        }
+      }
+
+      console.log('📋 詳細プロンプト構築情報:', {
+        selectedArea,
+        selectedBusinessType,
+        selectedUSP,
+        selectedSub,
+        selectedEnvironment,
+        requiredElements: requiredElements.length,
+        prohibitedExpressions: prohibitedExpressions.length,
+        recommendationPhrases: recommendationPhrases.length,
+        humannessKeyPoints: humannessKeyPoints.length,
+        areaListLength: areaList.length,
+        businessTypeListLength: businessTypeList.length,
+        uspListLength: uspList.length,
+        selectedAreaIndex: index % areaList.length,
+        selectedBusinessTypeIndex: index % businessTypeList.length,
+        selectedUspIndex: index % uspList.length,
+        targetLength,
+        isLongText: targetLength >= 300
+      });
+      
+    } catch (csvError) {
+      console.warn('⚠️ CSV設定解析エラー、デフォルト値を使用:', csvError);
+    }
+    
   } catch (csvError) {
     console.warn('⚠️ CSV設定解析エラー、デフォルト値を使用:', csvError);
   }
 
-  // 文字数をインデックスベースで変動（150-300文字）
-  const targetLength = 150 + (index * 30) % 150;
+  // QA知識から重要なガイドラインを選択（複数選択）
+  let criticalGuidelines: string[] = [];
+  let importantTips: string[] = [];
   
+  if (qaKnowledge && qaKnowledge.length > 0) {
+    qaKnowledge.forEach((qa: any) => {
+      if (qa.priority === 'Critical') {
+        criticalGuidelines.push(`${qa.question} → ${qa.answer}`);
+      } else if (qa.priority === 'High') {
+        importantTips.push(`${qa.question} → ${qa.answer}`);
+      }
+    });
+  }
+
+  // 成功例から参考情報とワードタイプを選択（年代に応じて）
+  let referenceExample = '';
+  let targetWordType = 'Medium型'; // デフォルト
+  let targetRecommendPhrase = '日本酒好きに'; // デフォルト
+  
+  if (successExamples && successExamples.length > 0) {
+    const ageGroup = selectedPattern.age_group || '30代';
+    const matchingExamples = successExamples.filter((example: any) => 
+      example.age === ageGroup
+    );
+    
+    if (matchingExamples.length > 0) {
+      const selectedExample = matchingExamples[index % matchingExamples.length];
+      referenceExample = `参考例（${ageGroup}）: ${selectedExample.review.substring(0, 150)}...`;
+      targetWordType = selectedExample.word || 'Medium型';
+      targetRecommendPhrase = selectedExample.recommend || '日本酒好きに';
+    } else {
+      const selectedExample = successExamples[index % successExamples.length];
+      referenceExample = `参考例: ${selectedExample.review.substring(0, 150)}...`;
+      targetWordType = selectedExample.word || 'Medium型';
+      targetRecommendPhrase = selectedExample.recommend || '日本酒好きに';
+    }
+  }
+  
+  // 推奨フレーズをCSVから循環選択（より多様性を確保）
+  if (recommendationPhrases.length > 0) {
+    targetRecommendPhrase = recommendationPhrases[index % recommendationPhrases.length];
+  }
+
   const prompt = `
 あなたはプロの口コミライターです。
 ${selectedBusinessType}（${selectedArea}のエンタメバー）について、${selectedPattern.age_group}の${selectedPattern.personality_type}として自然な日本語で口コミを生成してください。
 
-必須要素：
+【必須要素（必ず含める）】
 - エリア: ${selectedArea}
 - 業種: ${selectedBusinessType}
-${selectedUSP ? `- 特徴: ${selectedUSP}` : ''}
+- メイン特徴: ${selectedUSP}
+${requiredElements.map(element => `- ${element}`).join('\n')}
 
-条件：
+【年代・性格特性】
+- 年代: ${selectedPattern.age_group}
+- 性格タイプ: ${selectedPattern.personality_type}
+- 語彙レベル: ${selectedPattern.vocabulary}
+- 感嘆符使用: ${selectedPattern.exclamation_marks}
+- 文体特徴: ${selectedPattern.characteristics}
+- 目標ワードタイプ: ${targetWordType}
+
+【人間らしさのポイント】
+${humannessKeyPoints.map(point => `- ${point}`).join('\n')}
+
+【絶対禁止事項】
+${prohibitedExpressions.map(expr => `- "${expr}" は使用禁止`).join('\n')}
+- 絵文字は一切使用禁止
+- 具体的な武将名（源義経・織田信長等）は使用禁止
+- "SHOGUN BAR（池袋西口）"のような括弧表記は禁止
+- "ふらっと"や"偶然"等の計画性のない表現は禁止（完全予約制のため）
+- "友達と"や"彼女と"等の同伴者直接言及は禁止
+- 指定されていない形容詞や修飾語を業種に追加禁止（「和風バー」「モダンなバー」等）
+
+【重要ガイドライン】
+${criticalGuidelines.slice(0, 3).map(guideline => `- ${guideline}`).join('\n')}
+
+【必須終了フレーズ】
+※以下のフレーズで必ず文章を終了してください：
+"${targetRecommendPhrase}おすすめです"
+
+${referenceExample}
+
+【基本条件】
 - ${targetLength}文字程度
-- 一人称視点で体験談として書く
-- 絵文字は使わない
-- 自然で説得力のある内容
-- ${selectedPattern.age_group}らしい表現
+- 一人称視点で自然な体験談として書く
+- ${selectedPattern.age_group}らしい語彙と表現を使用
+- ${selectedPattern.personality_type}らしい文体で統一
+- 完璧すぎず、人間らしい自然な文章にする
+- ${targetWordType}の文体レベルを維持
+- 必ず「${targetRecommendPhrase}おすすめです」で終了
 
-口コミ本文のみを出力してください。
+上記の全ての条件とルールを厳守して、自然で魅力的な口コミ本文のみを出力してください。説明文やNote等は一切含めないでください。
 `;
 
   return {
@@ -92,7 +315,19 @@ ${selectedUSP ? `- 特徴: ${selectedUSP}` : ''}
       selectedArea,
       selectedBusinessType,
       selectedUSP,
-      targetLength
+      selectedSub,
+      selectedEnvironment,
+      requiredElements,
+      prohibitedExpressions,
+      recommendationPhrases,
+      humannessKeyPoints,
+      criticalGuidelines,
+      targetLength,
+      referenceExample,
+      targetRecommendPhrase,
+      targetWordType,
+      ageGroup: selectedPattern.age_group,
+      personalityType: selectedPattern.personality_type
     }
   };
 }
@@ -158,6 +393,41 @@ async function callClaudeAPISimple(prompt: string, apiKey: string): Promise<stri
   }
 }
 
+/**
+ * 年代・性別分布に基づいてペルソナパターンをフィルタリング
+ */
+function filterHumanPatterns(humanPatterns: any[], ageDistribution: string, genderDistribution: string): any[] {
+  let filteredPatterns = [...humanPatterns];
+  
+  // 年代フィルタリング
+  if (ageDistribution !== 'auto') {
+    switch (ageDistribution) {
+      case '20s':
+        filteredPatterns = filteredPatterns.filter(pattern => pattern.age_group === '20代');
+        break;
+      case '30s':
+        filteredPatterns = filteredPatterns.filter(pattern => pattern.age_group === '30代');
+        break;
+      case '40s':
+        filteredPatterns = filteredPatterns.filter(pattern => pattern.age_group === '40代');
+        break;
+      case 'mixed':
+        // バランス型の場合は全年代を含める
+        break;
+    }
+  }
+  
+  console.log('📊 ペルソナフィルタリング結果:', {
+    originalCount: humanPatterns.length,
+    filteredCount: filteredPatterns.length,
+    ageDistribution,
+    genderDistribution,
+    availableAgeGroups: filteredPatterns.map(p => p.age_group).filter((group, index, arr) => arr.indexOf(group) === index)
+  });
+  
+  return filteredPatterns.length > 0 ? filteredPatterns : humanPatterns; // フィルタ結果が空の場合は全パターンを使用
+}
+
 const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
   console.log('🔧 シンプル版レビュー生成API呼び出し:', {
     method: req.method,
@@ -178,7 +448,7 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
 
     // 入力をサニタイズ
     const sanitizedBody = sanitizeInput(req.body);
-    const { csvConfig, reviewCount, customPrompt }: GenerateReviewsRequest = sanitizedBody as GenerateReviewsRequest;
+    const { csvConfig, reviewCount, customPrompt, ageDistribution, genderDistribution }: GenerateReviewsRequest = sanitizedBody as GenerateReviewsRequest;
 
     // パラメータのパースとバリデーション
     const paramValidation = parseAndValidateParams({ body: { reviewCount } } as NextApiRequest);
@@ -248,11 +518,14 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
     
     console.log(`🔧 ${reviewCount}件のシンプル版レビュー生成開始`);
     
+    // ペルソナパターンのフィルタリング
+    const filteredPatterns = filterHumanPatterns(csvConfig.humanPatterns, ageDistribution || 'auto', genderDistribution || 'auto');
+    
     for (let i = 0; i < reviewCount; i++) {
       try {
         // インデックスベースでペルソナパターンを選択
-        const patternIndex = i % csvConfig.humanPatterns.length;
-        const selectedPattern = csvConfig.humanPatterns[patternIndex];
+        const patternIndex = i % filteredPatterns.length;
+        const selectedPattern = filteredPatterns[patternIndex];
         
         console.log(`📝 レビュー ${i + 1} 生成中 - ペルソナ:`, {
           index: patternIndex,
@@ -277,6 +550,32 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
         const ageDecade = parseInt(ageGroup.replace('代', '')) || 30;
         const reviewerGender: 'male' | 'female' | 'other' = i % 2 === 0 ? 'male' : 'female';
         
+        // CompanionとWord、Recommendを生成
+        const companionOptions = ['一人', 'パートナー', '友人', '同僚', '家族'];
+        const selectedCompanion = companionOptions[i % companionOptions.length];
+        
+        // 実際に使用されたワードをバーティカルライン区切りで生成
+        const usedWords = [
+          selectedElements.selectedArea,
+          selectedElements.selectedBusinessType,
+          ...(selectedElements.selectedUSP ? selectedElements.selectedUSP.split(', ') : []),
+          ...(selectedElements.selectedSub ? selectedElements.selectedSub.split(', ') : []),
+          selectedElements.selectedEnvironment ? selectedElements.selectedEnvironment.split(', ') : []
+        ].flat().filter(word => word && word.trim() !== '');
+        
+        const wordColumnValue = usedWords.join('|');
+        
+        // デバッグログ：usedWords生成の詳細
+        console.log(`🔍 usedWords生成 (レビュー ${i + 1}):`, {
+          selectedArea: selectedElements.selectedArea,
+          selectedBusinessType: selectedElements.selectedBusinessType,
+          selectedUSP: selectedElements.selectedUSP,
+          selectedSub: selectedElements.selectedSub,
+          selectedEnvironment: selectedElements.selectedEnvironment,
+          usedWords: usedWords,
+          wordColumnValue: wordColumnValue
+        });
+        
         generatedReviews.push({
           reviewText: reviewText,
           rating: Math.floor(Math.random() * 2) + 4, // 4-5点
@@ -292,10 +591,14 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
             timestamp: new Date().toISOString()
           },
           csvFileIds: [],
-          isApproved: true
+          isApproved: true,
+          // CSV出力用の追加フィールド
+          companion: selectedCompanion,
+          word: wordColumnValue, // 実際に使用されたワードのバーティカルライン区切り
+          recommend: selectedElements.targetRecommendPhrase
         });
 
-        console.log(`✅ レビュー ${i + 1}/${reviewCount} シンプル生成完了 (文字数: ${reviewText.length})`);
+        console.log(`✅ レビュー ${i + 1}/${reviewCount} シンプル生成完了 (文字数: ${reviewText.length}, word: ${wordColumnValue}, recommend: ${selectedElements.targetRecommendPhrase})`);
         
       } catch (error) {
         console.error(`❌ レビュー ${i + 1} シンプル生成エラー:`, error);
@@ -314,7 +617,10 @@ const simpleHandler = async (req: NextApiRequest, res: NextApiResponse) => {
             index: i
           },
           csvFileIds: [],
-          isApproved: false
+          isApproved: false,
+          companion: '一人',
+          word: 'エラー', // エラー時は「エラー」で統一
+          recommend: 'エラー'
         });
       }
       

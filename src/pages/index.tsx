@@ -75,9 +75,17 @@ export default function HomePage() {
    * レビュー生成開始時のハンドラー
    * @param reviewCount 生成件数
    * @param customPrompt カスタムプロンプト（オプション）
+   * @param ageDistribution 年代分布設定（オプション）
+   * @param genderDistribution 性別分布設定（オプション）
    */
-  const handleGenerateReviews = async (reviewCount: number, customPrompt?: string) => {
-    console.log('🚀 handleGenerateReviews 開始:', { reviewCount, customPrompt: !!customPrompt, csvConfig: !!csvConfig });
+  const handleGenerateReviews = async (reviewCount: number, customPrompt?: string, ageDistribution?: string, genderDistribution?: string) => {
+    console.log('🚀 handleGenerateReviews 開始:', { 
+      reviewCount, 
+      customPrompt: !!customPrompt, 
+      ageDistribution,
+      genderDistribution,
+      csvConfig: !!csvConfig 
+    });
     
     // 詳細デバッグ情報を追加
     console.log('🔍 詳細デバッグ情報:', {
@@ -89,12 +97,14 @@ export default function HomePage() {
       successExamplesCount: csvConfig?.successExamples?.length || 0,
       reviewCount,
       customPromptLength: customPrompt?.length || 0,
+      ageDistribution,
+      genderDistribution,
       isGenerating
     });
     
     if (!csvConfig) {
       console.error('❌ CSVConfigが未設定');
-      alert('CSVファイルをアップロードしてください。\n\n手順:\n1. ページ上部のCSVアップロード領域を確認\n2. 必要なCSVファイルをアップロード\n3. 「読み込み完了」メッセージを確認\n4. 再度生成ボタンを押してください');
+      alert('CSVファイルをアップロードしてください。\n\n手順:\n1. ページ上部のCSVアップロード領域を確認\n2. 必要なCSVファイルをアップロード\n3. "読み込み完了"メッセージを確認\n4. 再度生成ボタンを押してください');
       return;
     }
 
@@ -115,11 +125,15 @@ export default function HomePage() {
         csvConfig,
         reviewCount,
         customPrompt,
+        ageDistribution,
+        genderDistribution,
       };
       
       console.log('📤 リクエストボディ:', {
         csvConfigKeys: Object.keys(csvConfig),
         reviewCount,
+        ageDistribution,
+        genderDistribution,
         hasCustomPrompt: !!customPrompt
       });
 
@@ -144,7 +158,20 @@ export default function HomePage() {
         throw new Error(`APIエラー: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
-      const reviews: GeneratedReview[] = await response.json();
+      const response_data = await response.json();
+      
+      // APIレスポンス形式に対応（success/dataプロパティまたは直接配列）
+      let reviews: GeneratedReview[];
+      if (response_data.success && response_data.data) {
+        // 新しいAPI形式: { success: true, data: [...] }
+        reviews = response_data.data;
+      } else if (Array.isArray(response_data)) {
+        // レガシー形式: 直接配列
+        reviews = response_data;
+      } else {
+        throw new Error('不正なAPIレスポンス形式です');
+      }
+      
       console.log('✅ レビュー生成完了:', { count: reviews.length, reviews: reviews.slice(0, 2) });
       setGeneratedReviews(reviews);
     } catch (error) {

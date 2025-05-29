@@ -37,13 +37,17 @@ function generateCSV(reviews: any[]): string {
                         review.reviewerGender === 'female' ? '女性' : 'その他';
     
     // generationParametersから使用されたキーワードと推奨フレーズを取得
-    const usedWords = review.generationParameters?.usedWords || '';
-    const selectedRecommendation = review.generationParameters?.selectedRecommendation || '日本酒好きに';
+    const usedWords = review.word || review.generationParameters?.usedWords?.join?.('|') || '';
+    const selectedRecommendation = review.recommend || review.generationParameters?.selectedRecommendation || '日本酒好きに';
+    const companion = review.companion || '一人';
     
     // デバッグログ：usedWordsが空の場合の詳細情報
     if (!usedWords) {
       console.log('⚠️ usedWordsが空です:', {
         reviewId: review.id,
+        hasWord: !!review.word,
+        hasRecommend: !!review.recommend,
+        hasCompanion: !!review.companion,
         hasGenerationParameters: !!review.generationParameters,
         generationParametersKeys: review.generationParameters ? Object.keys(review.generationParameters) : [],
         usedWordsValue: review.generationParameters?.usedWords,
@@ -55,7 +59,7 @@ function generateCSV(reviews: any[]): string {
       `"${(review.reviewText || '').replace(/"/g, '""')}"`, // ダブルクォートエスケープ
       ageString,
       genderString,
-      '一人', // companionは常に一人（個人体験のみ）
+      companion, // companion情報
       usedWords, // バーティカルライン区切りのキーワード
       selectedRecommendation // 使用された推奨フレーズ
     ];

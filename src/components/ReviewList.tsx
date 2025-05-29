@@ -43,17 +43,18 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
       const genderString = review.reviewerGender === 'male' ? '男性' : 
                           review.reviewerGender === 'female' ? '女性' : 'その他';
       
-      // generationParametersから使用されたキーワードと推奨フレーズを取得
-      const usedWords = review.generationParameters?.usedWords || '';
-      const selectedRecommendation = review.generationParameters?.selectedRecommendation || '日本酒好きに';
+      // 新しいフィールドを使用
+      const companion = review.companion || '一人';
+      const word = review.word || (review.generationParameters?.usedWords?.join?.('|')) || '';
+      const recommend = review.recommend || review.generationParameters?.selectedRecommendation || '日本酒好きに';
       
       return [
         `"${review.reviewText.replace(/"/g, '""')}"`, // CSVエスケープ
         ageString,
         genderString,
-        '一人', // companionは常に一人（個人体験のみ）
-        usedWords, // バーティカルライン区切りのキーワード
-        selectedRecommendation // 使用された推奨フレーズ
+        companion,
+        word,
+        recommend
       ];
     });
 
@@ -192,9 +193,9 @@ export const ReviewList: React.FC<ReviewListProps> = ({ reviews }) => {
 
               <div className="mt-3 pt-3 border-t border-gray-100">
                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                  <span>同伴者: 一人</span>
+                  <span>同伴者: {review.companion || '一人'}</span>
                   <span>•</span>
-                  <span>推奨: {review.generationParameters?.selectedRecommendation || '日本酒好きに'}</span>
+                  <span>推奨: {review.recommend || '日本酒好きに'}</span>
                   <span>•</span>
                   <span>業種: {review.generationParameters?.selectedElements?.businessType || 'SHOGUN BAR'}</span>
                   <span>•</span>

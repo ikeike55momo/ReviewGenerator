@@ -1318,6 +1318,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           ...selectedSubs
         ].filter(word => word && word.trim() !== '');
         
+        // word列用のバーティカルライン区切り文字列を生成
+        const wordColumnValue = usedWords.join('|');
+        
         // デバッグログ：usedWords生成の詳細
         console.log(`🔍 usedWords生成 (レビュー ${i + 1}):`, {
           selectedArea: finalPromptResult.selectedArea,
@@ -1326,6 +1329,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           selectedEnvironment: finalPromptResult.selectedEnvironment,
           selectedSubs: selectedSubs,
           usedWords: usedWords,
+          wordColumnValue: wordColumnValue,
           usedWordsLength: usedWords.length
         });
 
@@ -1345,7 +1349,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             selectedRecommendation: finalPromptResult.selectedRecommendation // 使用された推奨フレーズ
           },
           csvFileIds: [], // 後で実装
-          isApproved: qualityScore >= 7.0
+          isApproved: qualityScore >= 7.0,
+          // CSV出力用フィールド
+          companion: '一人', // 個人体験のみなので固定
+          word: wordColumnValue, // バーティカルライン区切りの使用ワード
+          recommend: finalPromptResult.selectedRecommendation // 使用された推奨フレーズ
         });
 
         console.log(`✅ レビュー ${i + 1}/${reviewCount} AI創作完了 (スコア: ${qualityScore}, 文字数: ${reviewText.length})`);
@@ -1371,7 +1379,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             error_message: error instanceof Error ? error.message : 'Unknown error'
           },
           csvFileIds: [],
-          isApproved: false
+          isApproved: false,
+          // CSV出力用フィールド
+          companion: '一人',
+          word: 'エラー',
+          recommend: 'エラー'
         });
         continue;
       }

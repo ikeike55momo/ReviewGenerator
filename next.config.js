@@ -38,7 +38,6 @@ const nextConfig = {
 
   // ビルド設定（Windows権限問題対応）
   distDir: '.next',
-  traceIgnorePatterns: ['**/node_modules/**'],
   
   // Webpack設定のカスタマイズ
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
@@ -63,12 +62,9 @@ const nextConfig = {
     }
 
     // Windows権限問題対応：ファイルシステム操作の最適化
-    config.cache = {
-      type: 'filesystem',
-      buildDependencies: {
-        config: [__filename],
-      },
-    };
+    if (!dev) {
+      config.cache = false;
+    }
 
     return config;
   },

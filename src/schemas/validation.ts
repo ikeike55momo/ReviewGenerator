@@ -147,54 +147,95 @@ export const BatchGenerationRequestSchema = z.object({
 }).strict();
 
 /**
- * CSV基本ルールスキーマ
+ * CSV基本ルールスキーマ（サンプルCSV仕様対応）
  */
 export const BasicRuleSchema = z.object({
   category: BaseSchemas.nonEmptyString,
-  type: z.enum(['required', 'recommended', 'prohibited'], {
-    errorMap: () => ({ message: 'タイプは required, recommended, prohibited のいずれかを選択してください' })
+  type: z.enum(['required', 'recommended', 'prohibited', 'format', 'key_point', 'area', 'business_type', 'usp', 'sub', 'environment', 'expression', 'main_feature', 'companion_mention', 'phrase'], {
+    errorMap: () => ({ message: 'タイプは required, recommended, prohibited, format, key_point, area, business_type, usp, sub, environment, expression, main_feature, companion_mention, phrase のいずれかを選択してください' })
   }),
   content: BaseSchemas.japaneseText,
-  priority: z.number().int().min(1).max(10).default(5),
+  priority: z.number().int().min(1).max(10).default(5).optional(),
   description: z.string().max(500).optional(),
 }).strict();
 
 /**
- * CSV人間パターンスキーマ
+ * CSV人間パターンスキーマ（サンプルCSV仕様対応）
  */
 export const HumanPatternSchema = z.object({
   age_group: z.enum(['10代', '20代', '30代', '40代', '50代', '60代以上'], {
     errorMap: () => ({ message: '有効な年齢層を選択してください' })
   }),
-  gender: GenderSchema,
+  gender: GenderSchema.optional(), // CSVでは未定義の場合がある
   personality_type: BaseSchemas.nonEmptyString,
   vocabulary: BaseSchemas.japaneseText,
-  tone: BaseSchemas.nonEmptyString,
-  example_phrases: z.array(z.string()).min(1, '最低1つの例文が必要です'),
+  exclamation_marks: z.string().optional(), // 新規追加
+  characteristics: z.string().optional(), // 新規追加
+  example: z.string().optional(), // 新規追加
+  // 既存フィールドをオプショナルに変更
+  tone: BaseSchemas.nonEmptyString.optional(),
+  example_phrases: z.array(z.string()).optional(),
 }).strict();
 
 /**
- * CSV QA知識スキーマ
+ * CSV QA知識スキーマ（サンプルCSV仕様対応）
  */
 export const QAKnowledgeSchema = z.object({
   question: BaseSchemas.japaneseText,
   answer: BaseSchemas.japaneseText,
   category: BaseSchemas.nonEmptyString,
-  priority: z.number().int().min(1).max(10).default(5),
+  priority: z.union([z.string(), z.number()]).transform(val => {
+    if (typeof val === 'string') {
+      // 文字列の優先度を数値に変換
+      const priorityMap: Record<string, number> = {
+        'Critical': 10,
+        'High': 8,
+        'Medium': 5,
+        'Low': 2,
+      };
+      const mapped = priorityMap[val];
+      if (mapped !== undefined) return mapped;
+      
+      // 数値文字列の場合
+      const num = parseInt(val, 10);
+      return isNaN(num) ? 5 : num; // デフォルト値5
+    }
+    return val;
+  }).pipe(z.number().int().min(1).max(10)).optional(),
+  // サンプルCSVの実際のフィールド
+  example_situation: z.string().optional(),
+  example_before: z.string().optional(),
+  example_after: z.string().optional(),
+  // 既存フィールドをオプショナルに
   keywords: z.array(z.string()).optional(),
   context: z.string().max(1000).optional(),
 }).strict();
 
 /**
- * CSV成功例スキーマ
+ * CSV成功例スキーマ（サンプルCSV仕様対応）
  */
 export const SuccessExampleSchema = z.object({
   review: BaseSchemas.japaneseText,
-  rating: BaseSchemas.rating,
-  age: BaseSchemas.age,
+  age: z.union([z.string(), z.number()]).transform(val => {
+    if (typeof val === 'string') {
+      // "20代" -> 25, "30代" -> 35 のような変換
+      const match = val.match(/(\d+)代/);
+      if (match) {
+        return parseInt(match[1], 10) + 5; // 代の中央値
+      }
+      const num = parseInt(val, 10);
+      return isNaN(num) ? 25 : num; // デフォルト値
+    }
+    return val;
+  }).pipe(BaseSchemas.age),
   gender: GenderSchema,
-  category: BaseSchemas.nonEmptyString,
-  quality_score: BaseSchemas.qualityScore,
+  companion: BaseSchemas.nonEmptyString,
+  word: BaseSchemas.nonEmptyString,
+  recommend: BaseSchemas.nonEmptyString,
+  // 既存フィールドをオプショナルに
+  rating: BaseSchemas.rating.optional(),
+  category: BaseSchemas.nonEmptyString.optional(),
+  quality_score: BaseSchemas.qualityScore.optional(),
   tags: z.array(z.string()).optional(),
 }).strict();
 

@@ -16,9 +16,10 @@ import {
 /**
  * バッチ生成メイン処理（グローバル重複管理対応）
  * @param {BatchGenerationRequest} request - バッチ生成リクエスト
+ * @param {NextApiRequest} req - Next.js APIリクエストオブジェクト
  * @returns {Promise<string[]>} 作成されたバッチID一覧
  */
-async function processBatchGeneration(request: BatchGenerationRequest): Promise<string[]> {
+async function processBatchGeneration(request: BatchGenerationRequest, req: NextApiRequest): Promise<string[]> {
   const { csvConfig, batchSize, batchCount, customPrompt, batchName } = request;
   const batchIds: string[] = [];
   const allGeneratedTexts: string[] = []; // バッチ間重複防止用
@@ -50,7 +51,11 @@ async function processBatchGeneration(request: BatchGenerationRequest): Promise<
       console.log(`📦 バッチ ${batchIndex + 1}/${batchCount} 作成完了: ${batchId}`);
       
       // レビュー生成APIを呼び出し（バッチ間重複防止対応）
-      const generateResponse = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/generate-reviews`, {
+      const baseUrl = req.headers.host 
+        ? `${req.headers['x-forwarded-proto'] || 'http'}://${req.headers.host}`
+        : process.env.NEXTAUTH_URL || 'http://localhost:3000';
+      
+      const generateResponse = await fetch(`${baseUrl}/api/generate-reviews`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,7 +210,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       batchCount,
       customPrompt,
       batchName
-    });
+    }, req);
 
     console.log(`🎉 バッチ生成完了: ${batchIds.length}バッチ作成`);
 
