@@ -110,7 +110,7 @@ class ClaudeCodeBuilder {
     
     try {
       const response = await this.client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 4000,
         temperature: 0.3,
         messages: [{ role: 'user', content: prompt }]

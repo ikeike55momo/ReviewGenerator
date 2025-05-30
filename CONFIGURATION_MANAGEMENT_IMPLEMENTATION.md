@@ -75,7 +75,7 @@ interface SystemConfiguration {
 ```typescript
 interface APIConfiguration {
   claude: {
-    model: string;              // 'claude-3-5-sonnet-20241022'
+    model: string;              // 'claude-sonnet-4-20250514'
     maxTokens: number;          // 1000
     temperature: number;        // 0.8
     timeoutMs: number;          // 45000
@@ -191,7 +191,7 @@ interface SecurityConfiguration {
 ### 環境変数マッピング
 ```bash
 # 主要環境変数
-CLAUDE_MODEL=claude-3-5-sonnet-20241022
+CLAUDE_MODEL=claude-sonnet-4-20250514
 QUALITY_MIN_SCORE=7.0
 BATCH_CONCURRENCY=3
 LOG_LEVEL=info

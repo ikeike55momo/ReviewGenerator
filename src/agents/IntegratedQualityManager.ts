@@ -65,7 +65,7 @@ export class IntegratedQualityManager extends Agent {
         - 継続的改善のサイクル
         - ユーザー体験の最優先
       `,
-      model: anthropic('claude-3-haiku-20240307')
+      model: anthropic('claude-sonnet-4-20250514')
     });
     
     this.qaKnowledgeAgent = new IntelligentQAKnowledgeAgent();

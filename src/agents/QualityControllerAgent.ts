@@ -12,7 +12,7 @@ export class QualityControllerAgent extends Agent {
     super({
       name: 'Quality Controller Agent',
       instructions: '生成されたレビューの品質評価とスコアリングを行うエージェント',
-      model: anthropic('claude-3-haiku-20240307')
+      model: anthropic('claude-sonnet-4-20250514')
     });
   }
   checkQuality(review: GeneratedReview, config: CSVConfig): GeneratedReview {

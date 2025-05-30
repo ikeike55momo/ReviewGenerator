@@ -13,7 +13,7 @@ export class DynamicPromptBuilderAgent extends Agent {
     super({
       name: 'Dynamic Prompt Builder Agent',
       instructions: 'CSVデータに基づいて動的にプロンプトを構築するエージェント',
-      model: anthropic('claude-3-haiku-20240307')
+      model: anthropic('claude-sonnet-4-20250514')
     });
   }
 

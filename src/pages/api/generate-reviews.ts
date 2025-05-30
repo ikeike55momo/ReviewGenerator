@@ -444,7 +444,7 @@ ${customPrompt ? `\n追加指示: ${customPrompt}` : ''}
 async function callClaudeAPI(prompt: string, apiKey: string): Promise<string> {
   try {
     const requestBody = {
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
       temperature: 0.95, // より高い多様性のために温度を上げる
       messages: [

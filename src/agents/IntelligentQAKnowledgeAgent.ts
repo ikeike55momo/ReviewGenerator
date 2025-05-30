@@ -90,7 +90,7 @@ export class IntelligentQAKnowledgeAgent extends Agent {
         - 汎用性と具体性のバランス
         - 実装可能性を考慮
       `,
-      model: anthropic('claude-3-5-sonnet-20241022')
+      model: anthropic('claude-sonnet-4-20250514')
     });
     
     // 強化されたQA禁止事項制御システムを初期化

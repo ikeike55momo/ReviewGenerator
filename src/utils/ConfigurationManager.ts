@@ -296,7 +296,7 @@ class ConfigurationManager {
     return {
       api: {
         claude: {
-          model: 'claude-3-5-sonnet-20241022',
+          model: 'claude-sonnet-4-20250514',
           maxTokens: 1000,
           temperature: 0.8,
           timeoutMs: 45000,

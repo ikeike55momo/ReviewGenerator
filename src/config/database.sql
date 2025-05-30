@@ -119,7 +119,7 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 ('max_reviews_per_batch', '100', 'number', '一度に生成可能な最大レビュー数', true),
 ('min_quality_score', '0.7', 'number', '承認に必要な最小品質スコア', true),
 ('default_generation_timeout', '300', 'number', 'レビュー生成のタイムアウト時間（秒）', false),
-('claude_model', 'claude-3-sonnet-20240229', 'string', '使用するClaudeモデル', false),
+('claude_model', 'claude-sonnet-4-20250514', 'string', '使用するClaudeモデル', false),
 ('enable_quality_filter', 'true', 'boolean', '品質フィルターの有効化', true);
 
 -- デフォルトプロンプトテンプレート

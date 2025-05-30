@@ -12,7 +12,7 @@ export class CSVParserAgent extends Agent {
     super({
       name: 'CSV Parser Agent',
       instructions: 'CSVファイルの解析とバリデーションを行うエージェント',
-      model: anthropic('claude-3-haiku-20240307')
+      model: anthropic('claude-sonnet-4-20250514')
     });
   }
 

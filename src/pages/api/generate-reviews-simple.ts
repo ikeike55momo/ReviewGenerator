@@ -348,7 +348,7 @@ async function callClaudeAPISimple(prompt: string, apiKey: string): Promise<stri
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 800,
         temperature: 0.8, // 適度な多様性
         messages: [

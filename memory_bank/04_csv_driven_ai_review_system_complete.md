@@ -50,7 +50,7 @@
 
 ### バックエンド・デプロイ
 - **Netlify Functions** - サーバーレス実行環境
-- **Claude API** - Anthropic Claude-3.5-Sonnet
+- **Claude API** - Anthropic Claude-sonnet-4-20250514
 - **Supabase** - データベース（将来拡張用）
 
 ### 開発・運用
@@ -84,7 +84,7 @@
 
 - **Claude API直接連携**
   - HTTPSリクエストによる直接呼び出し
-  - model: claude-3-5-sonnet-20241022
+  - model: claude-sonnet-4-20250514
   - temperature: 0.8（創作性重視）
   - 30秒タイムアウト設定
 

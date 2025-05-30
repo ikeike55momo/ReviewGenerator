@@ -136,7 +136,7 @@ interface StructuredError {
 
 class SimpleConfigManager {
   private config: Record<string, any> = {
-    'api.claude.model': 'claude-3-5-sonnet-20241022',
+    'api.claude.model': 'claude-sonnet-4-20250514',
     'api.claude.temperature': 0.8,
     'api.claude.maxTokens': 1000,
     'quality.thresholds.minimumScore': 7.0,

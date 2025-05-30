@@ -15,7 +15,7 @@ export class ReviewGeneratorAgent extends Agent {
     super({
       name: 'Review Generator Agent',
       instructions: 'Claude APIを使用して高品質な日本語レビューを生成するエージェント',
-      model: anthropic('claude-3-haiku-20240307')
+      model: anthropic('claude-sonnet-4-20250514')
     });
     this.claude = new Anthropic({ apiKey });
   }
