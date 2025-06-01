@@ -1,0 +1,231 @@
+name: 🔄 Claude Code Complete Workflow
+
+on:
+  issues:
+    types: [opened]
+    
+# 並列実行を許可
+concurrency:
+  group: claude-dev-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  complete-workflow:
+    if: contains(github.event.issue.labels.*.name, 'claude-dev')
+    runs-on: ubuntu-latest
+    # 複数のジョブを並列実行可能にする
+    strategy:
+      max-parallel: 10  # 最大10個まで並列実行
+    
+    steps:
+      - name: 🔀 Generate unique branch name
+        id: branch
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          RANDOM_ID=$(openssl rand -hex 4)
+          BRANCH_NAME="claude-dev/issue-${{ github.event.issue.number }}-${TIMESTAMP}-${RANDOM_ID}"
+          echo "branch_name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+          echo "🌳 Branch: ${BRANCH_NAME}"
+          
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 全履歴を取得（競合解決のため）
+          
+      - name: 🌳 Create and checkout new branch
+        run: |
+          git config --global user.name "Claude Code Bot"
+          git config --global user.email "claude-bot@example.com"
+          
+          # 最新のmainを取得
+          git fetch origin main
+          git checkout -b ${{ steps.branch.outputs.branch_name }} origin/main
+          
+          echo "📍 Current branch: $(git branch --show-current)"
+          echo "📊 Latest commit: $(git log -1 --oneline)"
+          
+      - name: 🔒 Setup workspace isolation
+        run: |
+          # 作業ディレクトリを隔離
+          WORKSPACE_DIR="claude-workspace-${{ github.event.issue.number }}"
+          mkdir -p "${WORKSPACE_DIR}"
+          echo "workspace_dir=${WORKSPACE_DIR}" >> $GITHUB_ENV
+          
+      - name: 📊 Check for conflicts
+        id: conflict-check
+        run: |
+          # 他の進行中のPRをチェック
+          echo "🔍 Checking for potential conflicts..."
+          git fetch origin 'refs/pull/*/head:refs/remotes/origin/pr/*'
+          
+          # 競合する可能性のあるファイルをリスト
+          ACTIVE_PRS=$(gh pr list --state open --label claude-dev --json number,headRefName)
+          echo "active_prs=${ACTIVE_PRS}" >> $GITHUB_OUTPUT
+          
+      - name: 🤖 Execute Complete Workflow
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ steps.branch.outputs.branch_name }}
+          command: |
+            # 作業情報
+            Issue番号: #${{ github.event.issue.number }}
+            タイトル: ${{ github.event.issue.title }}
+            作業ブランチ: ${{ steps.branch.outputs.branch_name }}
+            
+            # 並列実行の注意事項
+            - このタスクは他のタスクと並列で実行される可能性があります
+            - ファイルの編集時は競合に注意してください
+            - 新規ファイルの作成を優先し、既存ファイルの大幅な変更は避けてください
+            
+            # 以下のフルワークフローを実行してください：
+            
+            ## 1. 📋 要件定義作成
+            - Issueの内容を分析して要件定義を作成
+            - `/docs/requirements/issue-${{ github.event.issue.number }}.md`に保存
+            - 要件定義には以下を含める：
+              - 機能概要
+              - 技術仕様
+              - 実装スコープ
+              - 制約事項
+              - 他のIssueとの依存関係（もしあれば）
+            
+            ## 2. 📝 CLAUDE.md修正
+            - プロジェクトのCLAUDE.mdを更新
+            - 新しい機能/修正内容を追記
+            - Issue番号を参照として記載
+            - 競合を避けるため、セクションの最後に追記する形式で
+            
+            ## 3. 💻 コーディング
+            - Issueの「開発内容の説明」に基づいて実装
+            - 開発タイプに応じた適切な実装を行う
+            - コードは既存のコーディング規約に従う
+            - 可能な限り新規ファイルで実装し、既存ファイルの変更は最小限に
+            
+            ## 4. 🧪 動作確認・テスト実施
+            - 実装したコードを実際に実行して動作確認
+            - エラーがないことを確認
+            - 以下の観点でテスト：
+              - 基本的な動作が正常に行われるか
+              - エラーハンドリングが適切か
+              - 期待される出力が得られるか
+              - 他の機能に影響を与えていないか
+            - 問題があれば修正してから次のステップへ
+            
+            ## 5. ✅ 完了記録
+            - `.claude/completed_tasks.md`に以下の形式で記録：
+            
+            ```markdown
+            ## Task: ${{ github.event.issue.title }}
+            - Issue: #${{ github.event.issue.number }}
+            - Date: $(date +"%Y-%m-%d %H:%M:%S")
+            - Branch: ${{ steps.branch.outputs.branch_name }}
+            - Status: ✅ Completed
+            - Type: [開発タイプ]
+            - Files:
+              - Created: [作成したファイル一覧]
+              - Modified: [修正したファイル一覧]
+            - Testing:
+              - 動作確認: ✅ 完了
+              - エラーチェック: ✅ パス
+              - 確認内容: [実行した確認内容]
+            - Summary: [実装内容の要約]
+            - Parallel Execution: Yes
+            ```
+            
+      - name: 🔍 Post-execution conflict check
+        run: |
+          # 実行後の競合チェック
+          git fetch origin main
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "⚠️ Main branch has been updated during execution"
+            git rebase origin/main || echo "❌ Conflicts detected, manual resolution required"
+          fi
+            
+      - name: 📝 Create Pull Request
+        id: cpr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "🤖 Complete workflow for issue #${{ github.event.issue.number }}"
+          title: "🤖 [CLAUDE-DEV] ${{ github.event.issue.title }}"
+          body: |
+            ## 🔄 自動生成されたPR
+            
+            このPRはIssue #${{ github.event.issue.number }} に基づいて自動生成されました。
+            
+            ### 🌳 ブランチ情報
+            - 作業ブランチ: `${{ steps.branch.outputs.branch_name }}`
+            - ベースブランチ: `main`
+            - 作成時刻: `${{ steps.branch.outputs.branch_name }}`
+            
+            ### 🔄 並列実行情報
+            - 同時実行された他のワークフロー: ${{ steps.conflict-check.outputs.active_prs }}
+            - 競合チェック: 実施済み
+            
+            ### 実行されたワークフロー
+            - ✅ 要件定義作成
+            - ✅ CLAUDE.md更新
+            - ✅ コーディング
+            - ✅ 動作確認・エラーチェック
+            - ✅ 完了記録
+            
+            ### レビューポイント
+            - [ ] 要件定義が適切か
+            - [ ] 実装が要件を満たしているか
+            - [ ] 動作確認が完了しているか
+            - [ ] エラーがないことが確認済みか
+            - [ ] コーディング規約に準拠しているか
+            
+            ### 競合確認
+            - [ ] 他のPRとの競合がないか
+            - [ ] mainブランチとの競合がないか
+            
+            Closes #${{ github.event.issue.number }}
+          branch: ${{ steps.branch.outputs.branch_name }}
+          delete-branch: true
+          
+      - name: 💬 Comment on Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 フルワークフローが完了しました！
+              
+              ### 📊 実行結果
+              - 🌳 作業ブランチ: \`${{ steps.branch.outputs.branch_name }}\`
+              - 🔗 PR: #${{ steps.cpr.outputs.pull-request-number }}
+              - ⏰ 実行時刻: ${new Date().toISOString()}
+              - 🔄 並列実行: 有効
+              
+              レビューをお願いします！`
+            })
+            
+      - name: 🏷️ Add labels to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              issue_number: ${{ steps.cpr.outputs.pull-request-number }},
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: ['auto-generated', 'claude-dev', 'issue-${{ github.event.issue.number }}', 'parallel-execution']
+            })
+            
+      - name: 📊 Update project board
+        continue-on-error: true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // プロジェクトボードへの自動追加（オプション）
+            console.log(`PR #${{ steps.cpr.outputs.pull-request-number }} created for Issue #${{ github.event.issue.number }}`)

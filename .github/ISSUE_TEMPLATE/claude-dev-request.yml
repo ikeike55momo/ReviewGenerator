@@ -1,12 +1,24 @@
 name: 🤖 Claude Code 開発依頼
-description: Claude Code APIを使った自動開発の依頼
+description: Claude Code APIを使った自動開発の依頼（フルワークフロー実行）
 title: "[CLAUDE-DEV] "
 labels: ["claude-dev", "auto-development"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🔄 自動実行フロー
+        このIssueを作成すると、以下のフローが自動実行されます：
+        1. 📋 要件定義作成 → `/docs/requirements/`
+        2. 📝 CLAUDE.md修正 → プロジェクト概要を更新
+        3. 💻 コーディング → 指示に基づいて実装
+        4. 🧪 動作確認 → エラーがないことを確認してから納品
+        5. ✅ 完了記録 → `.claude/completed_tasks.md`
+
   - type: dropdown
     id: dev-type
     attributes:
       label: 開発タイプ
+      description: 何を開発しますか？
       options:
         - "🏗️ 新機能開発"
         - "🔧 既存機能改善"
@@ -19,39 +31,38 @@ body:
   - type: textarea
     id: claude-prompt
     attributes:
-      label: Claude Code への指示
-      description: Claude Code APIに送信する詳細な指示
+      label: 開発内容の説明
+      description: 何を実装してほしいか、具体的に記述してください
       placeholder: |
-        あなたは優秀なフルスタック開発者です。
-        以下の要件に基づいて実装してください：
+        【実装したい内容】
+        例：ユーザー認証機能を追加したい
         
-        【実装要件】
-        - 
+        【詳細】
+        - ログイン/ログアウト機能
+        - セッション管理
+        - パスワードリセット機能
         
-        【技術制約】
-        - 
-        
-        【品質要件】
-        - 
+        【技術的な要望】
+        - JWT認証を使用
+        - TypeScriptで実装
     validations:
       required: true
 
   - type: textarea
     id: target-files
     attributes:
-      label: 対象ファイル
-      description: 修正・作成対象のファイル一覧
+      label: 関連ファイル（任意）
+      description: 特定のファイルを指定したい場合のみ記入
       placeholder: |
-        - src/agents/NewAgent.ts (新規作成)
-        - src/components/UploadForm.tsx (修正)
-        - requirements/new-feature.md (更新)
+        - src/auth/login.ts
+        - src/components/LoginForm.tsx
+        - tests/auth.test.ts
 
   - type: checkboxes
-    id: execution-options
+    id: confirmation
     attributes:
-      label: 実行オプション
+      label: 実行確認
+      description: フルワークフローの実行を確認
       options:
-        - label: 即座実行（手動トリガー）
-        - label: 他のIssueとの連携
-        - label: Pull Request自動作成
-        - label: レビュー後マージ
+        - label: 上記のフルワークフローを実行することを理解しました
+          required: true
